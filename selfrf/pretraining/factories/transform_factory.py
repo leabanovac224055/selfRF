@@ -1,9 +1,7 @@
-from dataclasses import dataclass
 from typing import Dict, Callable, Union
-import numpy as np
 
 from torchsig.transforms.dataset_transforms import ComplexTo2D, Spectrogram, Transform
-from torchsig.transforms.base_transforms import Normalize, Compose
+from torchsig.transforms.base_transforms import Compose
 from torchsig.transforms.target_transforms import ClassIndex, FamilyIndex
 
 
@@ -11,19 +9,11 @@ from selfrf.transforms import (
     ToSpectrogramTensor,
     ToTensor,
     BYOLTransform,
-    SpectrogramImage,
 )
 from selfrf.pretraining.config import BaseConfig, TrainingConfig, EvaluationConfig
 from selfrf.transforms.extra.target_transforms import ConstantTargetTransform
 from selfrf.pretraining.utils.utils import get_class_list
 from selfrf.pretraining.utils.enums import TransformType, SSLModelType, DatasetType
-
-
-@dataclass
-class SpectrogramConfig:
-    nfft: int
-    noverlap: int
-    mode: str = 'psd'
 
 
 class TransformFactory:
@@ -33,8 +23,6 @@ class TransformFactory:
             Spectrogram(
                 fft_size=config.nfft,
             ),
-            Normalize(norm=np.inf, flatten=True),
-            SpectrogramImage(normalize_max=1),
             ToSpectrogramTensor(
                 to_float_32=config.to_float_32,
             ),
@@ -43,7 +31,6 @@ class TransformFactory:
     @staticmethod
     def create_iq_transform(config: BaseConfig) -> Transform:
         return Compose([
-            Normalize(norm=np.inf),
             ComplexTo2D(),
             ToTensor(to_float_32=config.to_float_32),
         ])

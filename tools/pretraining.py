@@ -4,13 +4,13 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from selfrf.pretraining.config import TrainingConfig, parse_training_config, print_config
-from selfrf.pretraining.factories import build_dataset, build_ssl_model
+from selfrf.pretraining.factories import build_dataloader, build_ssl_model
 from selfrf.pretraining.utils.callbacks import ModelAndBackboneCheckpoint
 
 
 def train(config: TrainingConfig):
 
-    datamodule = build_dataset(config)
+    datamodule = build_dataloader(config)
     datamodule.prepare_data()
     datamodule.setup()
 

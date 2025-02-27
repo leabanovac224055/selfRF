@@ -48,37 +48,6 @@ class MultiViewTransform(Transform):
         return result
 
 
-class SpectrogramImage(DatasetTransform):
-    """Transforms SignalData to spectrogram image
-
-    Args:
-        None
-
-
-    Example:
-        >>> import torchsig.transforms as ST
-        >>> transform = ST.SpectrogramImage() 
-
-    """
-
-    def __init__(
-        self,
-        normalize_max: Literal[1, 255] = 255,
-    ) -> None:
-        super(SpectrogramImage, self).__init__()
-        self.normalize_max = normalize_max
-        self.string: str = (
-            self.__class__.__name__
-        )
-
-    def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        signal["data"]["samples"] = F.spectrogram_image(
-            signal["data"]["samples"],
-            normalize_max=self.normalize_max,
-        )
-        return signal
-
-
 class AmplitudeScale(DatasetTransform):
     """Scales the amplitude of the input tensor
 
@@ -86,7 +55,7 @@ class AmplitudeScale(DatasetTransform):
         scale (:py:class:`~Callable`, :obj:`float`, :obj:`list`, :obj:`tuple`):
             The scaling factor to apply.
             * If Callable, produces a sample by calling scale()
-            * If float, scale is fixed at the value provided  
+            * If float, scale is fixed at the value provided
             * If list, scale is any element in the list
             * If tuple, scale is in range of (tuple[0], tuple[1])
 
@@ -178,12 +147,12 @@ class ToTensor(DatasetTransform):
 
         # add channel dimension
         signal.data = tensor
-
+        self.update(signal)
         return signal
 
 
 class ToSpectrogramTensor(DatasetTransform):
-    """Converts a numpy array to a PyTorch tensor to shape (C, X, Y), 
+    """Converts a numpy array to a PyTorch tensor to shape (C, X, Y),
     where C is the number of channels (1), X is the number of time steps and y is the number of frequency bins.
     """
 
@@ -192,13 +161,17 @@ class ToSpectrogramTensor(DatasetTransform):
         to_float_32: bool = False
     ) -> None:
         super().__init__()
-
         self.to_float_32 = to_float_32
 
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         # check if data is in spectrogram format
-        if len(signal.data) != 2:
+        if len(signal.data.shape) != 2:
             raise ValueError("Data must be in spectrogram format (2D)")
+
+        # Make sure the array is contiguous before converting to torch tensor
+        # This fixes the negative stride issue
+        if not signal.data.flags.c_contiguous:
+            signal.data = np.ascontiguousarray(signal.data)
 
         # convert to torch tensor
         tensor = torch.from_numpy(signal.data)
@@ -208,5 +181,8 @@ class ToSpectrogramTensor(DatasetTransform):
             tensor = tensor.float()
 
         # add channel dimension
-        signal.data = tensor.unsqueeze(0)
+        tensor = tensor.unsqueeze(0)
+
+        signal.data = tensor
+        self.update(signal)
         return signal
