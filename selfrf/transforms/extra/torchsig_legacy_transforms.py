@@ -2,20 +2,20 @@
 """
 
 from typing import Callable, Optional
-from scipy import signal as sp
 import numpy as np
 
 from torchsig.signals.signal_types import Signal, SignalMetadata, DatasetSignal
 from torchsig.transforms.dataset_transforms import DatasetTransform
 from torchsig.transforms import functional as F
+from torchsig.utils.dsp import torchsig_complex_data_type
+from torchsig.transforms.transform_utils import (
+    get_distribution,
+    NumericParameter,
+    IntParameter,
+    FloatParameter,
+)
 
 import selfrf.transforms.extra.torchsig_legacy_functional as F_LEGACY
-from .torchsig_legacy_functional import (
-    FloatParameter,
-    IntParameter,
-    NumericParameter,
-    to_distribution,
-)
 
 __all__ = [
     "Identity",
@@ -29,7 +29,6 @@ __all__ = [
     "SpectrogramPatchShuffle",
     "SpectrogramTranslation",
     "SpectrogramMosaicDownsample",
-    "SpectrogramImage",
 ]
 
 
@@ -48,83 +47,63 @@ class Identity(DatasetTransform):
 
 
 class RandomTimeShift(DatasetTransform):
-    """Shifts tensor in the time dimension by shift samples. Zero-padding is applied to maintain input size.
+    """Shifts signal in the time dimension by shift samples. 
+    Zero-padding is applied to maintain input size.
 
     Args:
-        shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        shift: Amount to shift (samples):
             * If Callable, produces a sample by calling shift()
             * If int or float, shift is fixed at the value provided
             * If list, shift is any element in the list
             * If tuple, shift is in range of (tuple[0], tuple[1])
-
-        interp_rate (:obj:`int`):
-            Interpolation rate used by internal interpolation filter
-
-        taps_per_arm (:obj:`int`):
-            Number of taps per arm used in filter. More is slower, but more accurate.
-
-    Example:
-        >>> import torchsig.transforms as ST
-        >>> # Shift inputs by range of (-10, 20) samples with uniform distribution
+        min_time: Minimum time (fraction of signal) to maintain in view
     """
 
     def __init__(
         self,
         shift: NumericParameter = (-10, 10),
-        interp_rate: int = 100,
-        taps_per_arm: int = 24,
         min_time: float = .05,
         **kwargs,
     ) -> None:
-        super(RandomTimeShift, self).__init__(**kwargs)
-        self.shift = to_distribution(shift, self.random_generator)
-        self.interp_rate = interp_rate
+        super().__init__(**kwargs)
+        self.shift = get_distribution(shift, np.random.RandomState())
         self.min_time = min_time
-        num_taps = int(taps_per_arm * interp_rate)
-
-        self.taps = (
-            sp.firwin(num_taps, 1.0 / interp_rate, width=1.0 /
-                      (interp_rate / 4.0), scale=True)
-            * interp_rate
-        )
-        self.string = (
-            self.__class__.__name__
-            + "("
-            + "shift={}, ".format(shift)
-            + "interp_rate={}, ".format(interp_rate)
-            + "taps_per_arm={}".format(taps_per_arm)
-            + ")"
-        )
-        self.applied_transform_name = "RandomTimeShift"
 
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         """Apply time shift to signal."""
-        signal = self.transform_data(signal)
-        signal = self.transform_meta(signal)
+        # Get shift amount
+        shift = self.shift()
 
-        # Record the applied transform
-        for meta in signal.metadata:
-            if not hasattr(meta, "applied_transforms"):
-                meta.applied_transforms = []
-            meta.applied_transforms.append(self.applied_transform_name)
+        # Check bounds to ensure signals remain in view
+        shift = self._check_time_bounds(signal, shift)
 
+        signal.data = np.ascontiguousarray(
+            F_LEGACY.time_shift(signal.data, int(shift)))
+
+        self._transform_metadata(signal, shift)
+
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
         return signal
 
-    def check_time_bounds(self, signal: DatasetSignal) -> float:
+    def _check_time_bounds(self, signal: DatasetSignal, shift: float) -> float:
         """
-        Method checks new start and stop times to ensure signal is not cropped out
-        of view
+        Check new start and stop times to ensure signal is not cropped out of view
         """
         stop_shift_list = []
         start_shift_list = []
-        shift = self.shift
         total_samples = len(signal.data)
 
         for meta in signal.metadata:
             # Calculate normalized start/stop positions
-            start_norm = meta.start_in_samples / total_samples
-            stop_norm = (meta.start_in_samples +
-                         meta.duration_in_samples) / total_samples
+            start_in_samples = meta.start_in_samples if hasattr(
+                meta, 'start_in_samples') else int(meta.start * total_samples)
+            duration_in_samples = meta.duration_in_samples if hasattr(
+                meta, 'duration_in_samples') else int(meta.duration * total_samples)
+
+            start_norm = start_in_samples / total_samples
+            stop_norm = (start_in_samples +
+                         duration_in_samples) / total_samples
 
             # Calculate potential new positions
             temp_start = start_norm + shift / total_samples
@@ -136,7 +115,7 @@ class RandomTimeShift(DatasetTransform):
                                  start_norm) * total_samples
                     start_shift_list.append(new_shift)
                 else:
-                    new_shift = (1 - self.min_time - stop_norm) * total_samples
+                    new_shift = (0 + self.min_time - stop_norm) * total_samples
                     stop_shift_list.append(new_shift)
             else:
                 start_shift_list.append(shift)
@@ -153,47 +132,49 @@ class RandomTimeShift(DatasetTransform):
                 (np.min(start_shift_list), np.min(stop_shift_list)))
             max_shift = np.min(
                 (np.max(start_shift_list), np.max(stop_shift_list)))
+            return np.random.uniform(min_shift, max_shift)
         except:
-            return (shift,)
+            return shift
 
-        return (np.random.uniform(min_shift, max_shift, 1)[0],)
-
-    def transform_data(self, signal: DatasetSignal, params: tuple) -> DatasetSignal:
-        params_new = self.check_time_bounds(signal, params)
-        integer_part, _ = divmod(params_new[0], 1)
-        integer_time_shift: int = int(integer_part) if integer_part else 0
-
-        signal.data = F_LEGACY.time_shift(signal.data, integer_time_shift)
-        return signal
-
-    def transform_meta(self, signal: DatasetSignal, params: tuple) -> DatasetSignal:
-
-        params_new = self.check_time_bounds(signal, params)
-        shift = params_new[0]
+    def _transform_metadata(self, signal: DatasetSignal, shift: float) -> None:
+        """Update metadata after time shift."""
         total_samples = len(signal.data)
 
         valid_metadata = []
         for meta in signal.metadata:
-            # Update start position
-            meta.start_in_samples += int(shift)
+            # Get start position in samples
+            if hasattr(meta, 'start_in_samples'):
+                meta.start_in_samples += int(shift)
+                # Ensure values stay within bounds
+                meta.start_in_samples = max(
+                    0, min(total_samples - 1, meta.start_in_samples))
 
-            # Ensure values stay within bounds
-            meta.start_in_samples = max(
-                0, min(total_samples - 1, meta.start_in_samples))
+                # Update normalized start if it exists
+                if hasattr(meta, 'start'):
+                    meta.start = meta.start_in_samples / total_samples
 
-            # Update duration if needed to keep within bounds
-            if meta.start_in_samples + meta.duration_in_samples > total_samples:
-                meta.duration_in_samples = total_samples - meta.start_in_samples
+                # Update duration if needed to keep within bounds
+                if meta.start_in_samples + meta.duration_in_samples > total_samples:
+                    meta.duration_in_samples = total_samples - meta.start_in_samples
+
+                    # Update normalized duration if it exists
+                    if hasattr(meta, 'duration'):
+                        meta.duration = meta.duration_in_samples / total_samples
+            else:
+                # Working with normalized values
+                meta.start += shift / total_samples
+                meta.start = max(0.0, min(1.0, meta.start))
+
+                # Update duration if needed
+                if meta.start + meta.duration > 1.0:
+                    meta.duration = 1.0 - meta.start
 
             # Only keep metadata if duration is positive
-            if meta.duration_in_samples > 0:
+            if (hasattr(meta, 'duration_in_samples') and meta.duration_in_samples > 0) or \
+               (hasattr(meta, 'duration') and meta.duration > 0):
                 valid_metadata.append(meta)
 
         signal.metadata = valid_metadata
-        if len(signal.metadata) == 0:
-            print("Warning: empty metadata after RandomTimeShift!")
-
-        return signal
 
 
 class TimeCrop(DatasetTransform):
@@ -838,7 +819,7 @@ class SpectrogramTranslation(DatasetTransform):
         time_shift: IntParameter = (-128, 128),
         freq_shift: IntParameter = (-128, 128),
     ) -> None:
-        super(SpectrogramTranslation, self).__init__()
+        super().__init__()
         self.time_shift = to_distribution(time_shift, self.random_generator)
         self.freq_shift = to_distribution(freq_shift, self.random_generator)
         self.string = (
@@ -899,32 +880,4 @@ class SpectrogramTranslation(DatasetTransform):
 
         # Set output data's SignalMetadata to above list
         signal["metadata"] = new_meta
-        return signal
-
-
-class SpectrogramImage(DatasetTransform):
-    """Transforms SignalData to spectrogram image
-
-    Args:
-        None
-
-
-    Example:
-        >>> import torchsig.transforms as ST
-        >>> transform = ST.SpectrogramImage() 
-
-    """
-
-    def __init__(
-        self,
-    ) -> None:
-        super(SpectrogramImage, self).__init__()
-        self.string: str = (
-            self.__class__.__name__
-        )
-
-    def transform_data(self, signal: Signal) -> Signal:
-        signal["data"]["samples"] = F_LEGACY.spectrogram_image(
-            signal["data"]["samples"],
-        )
         return signal

@@ -18,7 +18,6 @@ from . import functional as F
 
 __all__ = [
     "MultiViewTransform",
-    "SpectrogramImage",
     "AmplitudeScale",
     "ToDtype",
     "ToTensor",
@@ -58,13 +57,6 @@ class AmplitudeScale(DatasetTransform):
             * If float, scale is fixed at the value provided
             * If list, scale is any element in the list
             * If tuple, scale is in range of (tuple[0], tuple[1])
-
-    Example:
-        >>> import torchsig.transforms as ST
-        >>> # Fixed scale of 2.0
-        >>> transform = ST.AmplitudeScale(2.0)
-        >>> # Random scale between 0.5 and 2.0
-        >>> transform = ST.AmplitudeScale((0.5, 2.0))
     """
 
     def __init__(
@@ -73,16 +65,11 @@ class AmplitudeScale(DatasetTransform):
         **kwargs
     ) -> None:
         super().__init__(**kwargs)
-        self.scale = get_distribution(scale, self.random_generator)
-        self.string = f"{self.__class__.__name__}(scale={scale})"
+        self.scale = get_distribution(scale)
 
-    def parameters(self) -> tuple:
-        return (float(self.scale()),)
-
-    def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        scale_value = params[0]
-        signal["data"]["samples"] = F.amplitude_scale(
-            signal["data"]["samples"], scale_value)
+    def transform_data(self, signal: Signal) -> Signal:
+        signal.data = F.amplitude_scale(signal.data, self.scale)
+        self.update(signal)
         return signal
 
 
@@ -97,26 +84,17 @@ class ToDtype(DatasetTransform):
             **kwargs) -> None:
         super().__init__(**kwargs)
         self.dtype = dtype
-        self.string = f"{self.__class__.__name__}(dtype={dtype})"
 
-    def parameters(self) -> tuple:
-        """
-        Returns:
-            A tuple containing the chosen dtype.
-        """
-        return (self.dtype(),)
-
-    def transform_data(self, signal: dict, params: tuple) -> dict:
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         """
         Converts the 'samples' in signal["data"] to the desired dtype.
 
         Returns:
             The modified signal dictionary.
         """
-        chosen_dtype = params[0]
         # Use astype to convert the NumPy array to the new dtype.
-        signal["data"]["samples"] = signal["data"]["samples"].astype(
-            chosen_dtype)
+        signal.data = signal.data.astype(self.dtype)
+        self.update(signal)
         return signal
 
 
@@ -145,7 +123,6 @@ class ToTensor(DatasetTransform):
         if self.to_float_32:
             tensor = tensor.float()
 
-        # add channel dimension
         signal.data = tensor
         self.update(signal)
         return signal

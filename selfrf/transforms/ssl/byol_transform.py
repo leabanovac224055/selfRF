@@ -26,7 +26,7 @@ class BYOLView1Transform(T.Transform):
         super().__init__()
 
         transforms = [
-            # T_LEGACY.RandomTimeShift((-max_time_shift, max_time_shift)),
+            T_LEGACY.RandomTimeShift((-max_time_shift, max_time_shift)),
             # T_LEGACY.RandomFrequencyShift((-max_freq_shift, max_freq_shift)),
             T.RandomApply(DT.TimeReversal(), tr_prob),
             T.RandomApply(DT.SpectralInversionDatasetTransform(), si_prob),
@@ -59,7 +59,7 @@ class BYOLView2Transform(T.Transform):
         super().__init__()
 
         transforms = [
-            # T_LEGACY.RandomTimeShift((-max_time_shift, max_time_shift)),
+            T_LEGACY.RandomTimeShift((-max_time_shift, max_time_shift)),
             # T_LEGACY.RandomFrequencyShift((-max_freq_shift, max_freq_shift)),
             T.RandomApply(DT.TimeReversal(), tr_prob),
             T.RandomApply(DT.SpectralInversionDatasetTransform(), si_prob),
