@@ -1,5 +1,7 @@
 from typing import Dict, Type
 
+from torchsig.datasets.datamodules import NarrowbandDataModule, TorchSigDataModule
+from torchsig.datasets.dataset_metadata import NarrowbandMetadata
 from selfrf.pretraining.config import BaseConfig
 from selfrf.data.data_modules import (
     RFCOCODataModule,
@@ -13,24 +15,30 @@ from selfrf.pretraining.factories.transform_factory import build_transform, buil
 
 class DatasetFactory:
     _dataset_registry: Dict[DatasetType, Type[RFCOCODataModule]] = {
-        DatasetType.TORCHSIG_NARROWBAND: TorchsigNarrowbandRFCOCODataModule,
+        DatasetType.TORCHSIG_NARROWBAND: NarrowbandDataModule,
         DatasetType.TORCHSIG_WIDEBAND: TorchsigWidebandRFCOCODataModule
     }
 
     @classmethod
-    def create_dataset(cls, config: BaseConfig) -> RFCOCODataModule:
+    def create_dataset(cls, config: BaseConfig) -> TorchSigDataModule:
         """Create dataset from config"""
         dataset_type = DatasetType(config.dataset)
         dataset_class = cls._dataset_registry[dataset_type]
 
         return dataset_class(
             root=config.root,
-            dataset_name=config.dataset_name,
-            download=config.download,
+            # dataset_name=config.dataset_name,
+            # download=config.download,
+            dataset_metadata=NarrowbandMetadata(
+                num_iq_samples_dataset=config.num_iq_samples,
+                impairment_level=2,
+                fft_size=config.nfft,
+            ),
+            num_samples_train=100,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
-            transform=build_transform(config),
-            target_transform=build_target_transform(config),
+            transforms=build_transform(config),
+            target_transforms=build_target_transform(config),
             collate_fn=build_collate_fn(config),
         )
 

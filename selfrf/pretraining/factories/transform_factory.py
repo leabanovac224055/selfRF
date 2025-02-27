@@ -2,15 +2,10 @@ from dataclasses import dataclass
 from typing import Dict, Callable, Union
 import numpy as np
 
-from torchsig.transforms import (
-    ComplexTo2D,
-    Compose,
-    Normalize,
-    Spectrogram,
-    Transform,
-    DescToClassIndex,
-    DescToFamilyName,
-)
+from torchsig.transforms.dataset_transforms import ComplexTo2D, Spectrogram, Transform
+from torchsig.transforms.base_transforms import Normalize, Compose
+from torchsig.transforms.target_transforms import ClassIndex, FamilyIndex
+
 
 from selfrf.transforms import (
     ToSpectrogramTensor,
@@ -36,10 +31,7 @@ class TransformFactory:
     def create_spectrogram_transform(config: BaseConfig) -> Transform:
         return Compose([
             Spectrogram(
-                nperseg=config.nfft,
-                noverlap=config.noverlap,
-                nfft=config.nfft,
-                mode=SpectrogramConfig.mode,
+                fft_size=config.nfft,
             ),
             Normalize(norm=np.inf, flatten=True),
             SpectrogramImage(normalize_max=1),
@@ -87,10 +79,9 @@ class TransformFactory:
         if config.dataset == DatasetType.TORCHSIG_NARROWBAND:
             if config.family:
                 return Compose([
-                    DescToFamilyName(),
-                    DescToClassIndex(class_list=get_class_list(config))
+                    FamilyIndex(class_list=get_class_list(config))
                 ])
-            return DescToClassIndex(class_list=get_class_list(config))
+            return ClassIndex(class_list=get_class_list(config))
 
         if config.dataset == DatasetType.TORCHSIG_WIDEBAND:
             # the wideband dataset cannot be used for online linear evaluation

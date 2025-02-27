@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from lightning.pytorch import LightningModule
+from pytorch_lightning import LightningModule
 import torch
 import torch.nn as nn
 from torch import Tensor

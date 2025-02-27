@@ -5,9 +5,10 @@ import numpy as np
 from typing import Dict, List, Literal, Optional, Tuple, Union
 from torch.utils.data import Dataset
 
-from torchsig.utils.types import Signal, create_signal_data
-from torchsig.transforms import Transform, Identity
+from torchsig.signals import Signal
+from torchsig.transforms.base_transforms import Transform
 
+from selfrf.transforms.extra.torchsig_legacy_transforms import Identity
 from selfrf.finetuning.detection.detectron2.mapper import _signal_to_coco_annotation
 
 
@@ -156,7 +157,7 @@ class RFCOCODataset(Dataset):
 
         # Create Signal object
         signal = Signal(
-            data=create_signal_data(samples=iq_data),
+            data=iq_data,
             metadata=meta,
         )
 

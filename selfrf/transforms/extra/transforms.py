@@ -3,10 +3,14 @@ from typing import Any, Literal, Sequence
 from copy import deepcopy
 import numpy as np
 import torch
-from torchsig.utils.types import Signal
-from torchsig.transforms import Transform, Compose, SignalTransform
-from torchsig.transforms.functional import NumericParameter, to_distribution
 
+from torchsig.signals.signal_types import Signal, DatasetSignal
+from torchsig.transforms.base_transforms import Transform, Compose
+from torchsig.transforms.dataset_transforms import DatasetTransform
+from torchsig.transforms.transform_utils import (
+    get_distribution,
+    NumericParameter
+)
 from copy import deepcopy
 import numpy as np
 
@@ -23,29 +27,28 @@ __all__ = [
 
 
 class MultiViewTransform(Transform):
-    """Transforms an signal into multiple views.
-
-    Args:
-        transforms:
-            A sequence of transforms. Every transform creates a new view.
-
-    """
+    """Transforms a signal into multiple views."""
 
     def __init__(self, transforms: Sequence[Compose]) -> None:
         super().__init__()
         self.transforms = transforms
 
-    def __call__(self, data: Any) -> Any:
-        """Creates independent views with separate data copies"""
+    def __call__(self, signal: Signal | DatasetSignal) -> Signal | DatasetSignal:
+        """Creates independent views with separate data copies and returns all views"""
         views = []
         for transform in self.transforms:
             # Create fresh copy for each transform pipeline
-            data_copy = deepcopy(data)
-            views.append(transform(data_copy))
-        return views
+            data_copy = deepcopy(signal)
+            transformed_view = transform(data_copy)
+            views.append(transformed_view)
+
+            # For object-based signals, create a new Signal-like object
+        result = deepcopy(signal)
+        result.data = [view.data for view in views]
+        return result
 
 
-class SpectrogramImage(SignalTransform):
+class SpectrogramImage(DatasetTransform):
     """Transforms SignalData to spectrogram image
 
     Args:
@@ -76,7 +79,7 @@ class SpectrogramImage(SignalTransform):
         return signal
 
 
-class AmplitudeScale(SignalTransform):
+class AmplitudeScale(DatasetTransform):
     """Scales the amplitude of the input tensor
 
     Args:
@@ -101,7 +104,7 @@ class AmplitudeScale(SignalTransform):
         **kwargs
     ) -> None:
         super().__init__(**kwargs)
-        self.scale = to_distribution(scale, self.random_generator)
+        self.scale = get_distribution(scale, self.random_generator)
         self.string = f"{self.__class__.__name__}(scale={scale})"
 
     def parameters(self) -> tuple:
@@ -114,7 +117,7 @@ class AmplitudeScale(SignalTransform):
         return signal
 
 
-class ToDtype(SignalTransform):
+class ToDtype(DatasetTransform):
     """
     Transform that converts the 'samples' of a signal (a NumPy ndarray) to a specific dtype.
     """
@@ -148,7 +151,7 @@ class ToDtype(SignalTransform):
         return signal
 
 
-class ToTensor(SignalTransform):
+class ToTensor(DatasetTransform):
     """Converts a numpy array to a PyTorch tensor.
 
     Example:
@@ -164,22 +167,22 @@ class ToTensor(SignalTransform):
         super().__init__()
         self.to_float_32 = to_float_32
 
-    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
 
         # convert to torch tensor
-        tensor = torch.from_numpy(signal["data"]["samples"])
+        tensor = torch.from_numpy(signal.data)
 
         # convert to float32 if requested
         if self.to_float_32:
             tensor = tensor.float()
 
         # add channel dimension
-        signal["data"]["samples"] = tensor
+        signal.data = tensor
 
         return signal
 
 
-class ToSpectrogramTensor(SignalTransform):
+class ToSpectrogramTensor(DatasetTransform):
     """Converts a numpy array to a PyTorch tensor to shape (C, X, Y), 
     where C is the number of channels (1), X is the number of time steps and y is the number of frequency bins.
     """
@@ -192,18 +195,18 @@ class ToSpectrogramTensor(SignalTransform):
 
         self.to_float_32 = to_float_32
 
-    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         # check if data is in spectrogram format
-        if len(signal["data"]["samples"].shape) != 2:
+        if len(signal.data) != 2:
             raise ValueError("Data must be in spectrogram format (2D)")
 
         # convert to torch tensor
-        tensor = torch.from_numpy(signal["data"]["samples"])
+        tensor = torch.from_numpy(signal.data)
 
         # convert to float32 if requested
         if self.to_float_32:
             tensor = tensor.float()
 
         # add channel dimension
-        signal["data"]["samples"] = tensor.unsqueeze(0)
+        signal.data = tensor.unsqueeze(0)
         return signal

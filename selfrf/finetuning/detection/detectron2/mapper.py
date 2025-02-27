@@ -5,16 +5,16 @@ import numpy as np
 from detectron2.data import detection_utils
 from detectron2.structures import BoxMode
 
-from torchsig.transforms.target_transforms import DescToBBoxDict
-from torchsig.utils.types import Signal, create_signal_data
-from torchsig.datasets.signal_classes import torchsig_signals
+from torchsig.signals import Signal
+from torchsig.signals.signal_lists import TorchSigSignalLists
 
+from selfrf.transforms.extra.target_transforms import BBOXLabel
 from selfrf.pretraining.config.base_config import BaseConfig
 
 
 FFT_SIZE = 512
-class_list = torchsig_signals.class_list
-target_transform = DescToBBoxDict(class_list=class_list)
+class_list = TorchSigSignalLists.all_signals
+target_transform = BBOXLabel()
 
 
 def rfcoco_mapper(dataset_dict: Dict):
@@ -52,7 +52,7 @@ def rfcoco_mapper(dataset_dict: Dict):
 
     annotations = dataset_dict["annotations"]
     signal = Signal(
-        data=create_signal_data(samples=iq_data),
+        data=iq_data,
         metadata=annotations,
     )
 
@@ -97,7 +97,7 @@ def rf_coco_evaluation_mapper(dataset_dict: Dict):
     iq_data = np.load(dataset_dict["file_name"])
 
     signal = Signal(
-        data=create_signal_data(samples=iq_data),
+        data=iq_data,
         metadata=[],  # empty metadata because we don't need it
     )
 

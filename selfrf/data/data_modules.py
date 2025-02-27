@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 from torch.utils.data import DataLoader
 
-from torchsig.transforms import Transform, Identity
-from torchsig.utils.dataset import collate_fn as collate_fn_default
+from torchsig.transforms.base_transforms import Transform
+from selfrf.transforms.extra.torchsig_legacy_transforms import Identity
 
 from selfrf.data.datasets import RFCOCODataset
 
@@ -28,7 +28,7 @@ class RFCOCODataModule(pl.LightningDataModule):
         num_workers: int = 4,
         transform: Optional[Transform] = None,
         target_transform: Optional[Transform] = None,
-        collate_fn: Callable = collate_fn_default,
+        collate_fn: Callable = None,
     ):
         super().__init__()
         self.root = Path(root)

@@ -2,8 +2,9 @@ from typing import Optional
 import numpy as np
 from torch import Tensor
 
-from torchsig.utils.types import Signal
-import torchsig.transforms as T
+from torchsig.signals import DatasetSignal
+import torchsig.transforms.base_transforms as T
+import torchsig.transforms.dataset_transforms as DT
 
 from ..extra import torchsig_legacy_transforms as T_LEGACY
 from ..extra import MultiViewTransform
@@ -20,24 +21,24 @@ class BYOLView1Transform(T.Transform):
                  min_amplitude_scale: float = -6,
                  max_amplitude_scale: float = 6,
                  max_phase_shift_rad: float = np.pi/4,
-                 tensor_transform: T.SignalTransform = T.ComplexTo2D(),
+                 tensor_transform: DT.DatasetTransform = DT.ComplexTo2D(),
                  ) -> None:
         super().__init__()
 
         transforms = [
-            T_LEGACY.RandomTimeShift((-max_time_shift, max_time_shift)),
-            T_LEGACY.RandomFrequencyShift((-max_freq_shift, max_freq_shift)),
-            T_LEGACY.RandomApply(T.TimeReversal(), tr_prob),
-            T_LEGACY.RandomApply(T_LEGACY.SpectralInversion(), si_prob),
-            T.AddNoise((min_snr_db, max_snr_db)),
+            # T_LEGACY.RandomTimeShift((-max_time_shift, max_time_shift)),
+            # T_LEGACY.RandomFrequencyShift((-max_freq_shift, max_freq_shift)),
+            T.RandomApply(DT.TimeReversal(), tr_prob),
+            T.RandomApply(DT.SpectralInversionDatasetTransform(), si_prob),
+            DT.AWGN(max_snr_db),
             # AmplitudeScale((min_amplitude_scale, max_amplitude_scale)),
-            T_LEGACY.RandomPhaseShift((0, max_phase_shift_rad)),
+            # T_LEGACY.RandomPhaseShift((0, max_phase_shift_rad)),
             tensor_transform,
         ]
 
         self.transform = T.Compose(transforms=transforms)
 
-    def __call__(self, signal: Signal) -> Tensor:
+    def __call__(self, signal: DatasetSignal) -> Tensor:
 
         return self.transform(signal)
 
@@ -53,24 +54,24 @@ class BYOLView2Transform(T.Transform):
                  min_amplitude_scale: float = -10,
                  max_amplitude_scale: float = 10,
                  max_phase_shift_rad: float = np.pi/8,
-                 tensor_transform: T.SignalTransform = T.ComplexTo2D(),
+                 tensor_transform: DT.DatasetTransform = DT.ComplexTo2D(),
                  ) -> None:
         super().__init__()
 
         transforms = [
-            T_LEGACY.RandomTimeShift((-max_time_shift, max_time_shift)),
-            T_LEGACY.RandomFrequencyShift((-max_freq_shift, max_freq_shift)),
-            T_LEGACY.RandomApply(T.TimeReversal(), tr_prob),
-            T_LEGACY.RandomApply(T_LEGACY.SpectralInversion(), si_prob),
-            T.AddNoise((min_snr_db, max_snr_db)),
+            # T_LEGACY.RandomTimeShift((-max_time_shift, max_time_shift)),
+            # T_LEGACY.RandomFrequencyShift((-max_freq_shift, max_freq_shift)),
+            T.RandomApply(DT.TimeReversal(), tr_prob),
+            T.RandomApply(DT.SpectralInversionDatasetTransform(), si_prob),
+            DT.AWGN(max_snr_db),
             # AmplitudeScale((min_amplitude_scale, max_amplitude_scale)),
-            T_LEGACY.RandomPhaseShift((0, max_phase_shift_rad)),
+            # T_LEGACY.RandomPhaseShift((0, max_phase_shift_rad)),
             tensor_transform,
         ]
 
         self.transform = T.Compose(transforms=transforms)
 
-    def __call__(self, signal: Signal) -> Tensor:
+    def __call__(self, signal: DatasetSignal) -> Tensor:
 
         return self.transform(signal)
 
@@ -80,7 +81,7 @@ class BYOLTransform(MultiViewTransform):
         self,
         view_1_transform: Optional[BYOLView1Transform] = None,
         view_2_transform: Optional[BYOLView2Transform] = None,
-        tensor_transform: T.SignalTransform = T.ComplexTo2D(),
+        tensor_transform: DT.DatasetTransform = DT.ComplexTo2D(),
     ):
         # We need to initialize the transforms here
         view_1_transform = view_1_transform or BYOLView1Transform(

@@ -1,7 +1,7 @@
-"""Functional transforms
+"""Functional transforms from legacy torchsig repo v0.6.0
 """
 from typing import Callable, List, Optional, Tuple, Union
-from torchsig.utils.dsp import low_pass, calculate_exponential_filter
+from torchsig.utils.dsp import low_pass
 from numba import njit
 from scipy import signal as sp
 from functools import partial
@@ -145,67 +145,6 @@ def to_distribution(
         return uniform_discrete_distribution([param], random_generator)
 
     return param
-
-
-def resample(
-    tensor: np.ndarray,
-    resamp_rate: float,
-    num_iq_samples: int,
-    keep_samples: bool,
-) -> np.ndarray:
-    """Resample a tensor by rational value
-
-    Args:
-        tensor (:class:`numpy.ndarray`):
-            tensor to be resampled.
-
-        resamp_rate(:class:`float`):
-            the resampling rate. to interpolate, resamp_rate > 1.0, to decimate
-            resamp_rate < 1.0. can accept a float number for irrational 
-            resampling rates
-
-        num_iq_samples (:class:`int`):
-            number of IQ samples to have after resampling
-
-        keep_samples (:class:`bool`):
-            boolean to specify if the resampled data should be returned as is
-
-    Returns:
-        Tensor:
-            Resampled tensor
-    """
-
-    coeffs_filename = "saved_coefficients.npy"
-    coeffs_fullpath = f"{DIR_PATH}/{coeffs_filename}"
-
-    max_uprate = 5000
-
-    # save/load coefficients when possible (expensive computation)
-    # saves into saved_coefficients.npy file
-    if os.path.exists(coeffs_fullpath):
-        resamp_fil = np.load(coeffs_fullpath)
-    else:
-        taps_phase = 32
-        fc = 0.95 / max_uprate
-        resamp_fil = calculate_exponential_filter(
-            P=max_uprate, num_taps=taps_phase * max_uprate, fc=fc, K=24.06)
-        np.save(coeffs_fullpath, resamp_fil)
-
-    # Resample
-    resampled = sp.upfirdn(resamp_fil * max_uprate, tensor,
-                           up=max_uprate, down=max_uprate//resamp_rate)
-
-    # Handle extra or not enough IQ samples
-    if keep_samples:
-        new_tensor = resampled
-    elif resampled.shape[0] > num_iq_samples:
-        new_tensor = resampled[:num_iq_samples]
-
-    else:
-        new_tensor = np.zeros((num_iq_samples,), dtype=np.complex128)
-        new_tensor[:resampled.shape[0]] = resampled
-
-    return new_tensor
 
 
 @njit(cache=False)

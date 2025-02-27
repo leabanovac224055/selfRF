@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
-from lightning.pytorch import Trainer
-from lightning.pytorch.loggers import TensorBoardLogger
+from pytorch_lightning import Trainer
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from selfrf.pretraining.config import TrainingConfig, parse_training_config, print_config
 from selfrf.pretraining.factories import build_dataset, build_ssl_model
@@ -11,6 +11,8 @@ from selfrf.pretraining.utils.callbacks import ModelAndBackboneCheckpoint
 def train(config: TrainingConfig):
 
     datamodule = build_dataset(config)
+    datamodule.prepare_data()
+    datamodule.setup()
 
     if not config.online_linear_eval:
         datamodule.val_dataloader = None
@@ -44,7 +46,7 @@ def train(config: TrainingConfig):
         max_epochs=config.num_epochs,
         devices=1,
         accelerator=config.device.type,
-        callbacks=[checkpoint_callback],
+        # callbacks=[checkpoint_callback],
         logger=logger,
     )
 
