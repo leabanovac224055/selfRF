@@ -19,11 +19,8 @@ import selfrf.transforms.extra.torchsig_legacy_functional as F_LEGACY
 
 __all__ = [
     "Identity",
-    "RandomPhaseShift",
     "RandomTimeShift",
-    "TimeCrop",
     "AmplitudeReversal",
-    "AmplitudeScale",
     "RandomFrequencyShift",
     "SpectrogramRandomResizeCrop",
     "SpectrogramPatchShuffle",
@@ -177,190 +174,26 @@ class RandomTimeShift(DatasetTransform):
         signal.metadata = valid_metadata
 
 
-class TimeCrop(DatasetTransform):
-    """Crops a tensor in the time dimension to the specified length. Optional
-    crop techniques include: start, center, end, & random
-
-    Args:
-        crop_type (:obj:`str`):
-            Type of cropping to perform. Options are: `start`, `center`, `end`,
-            and `random`. `start` crops the input tensor such that the first
-            `length` samples are returned. `center` crops the input tensor such
-            that the center `length` samples are returned. `end` crops the
-            input tensor such that the last `length` samples are returned.
-            `random` crops randomly in the range `[0,length-1]`.
-
-        length (:obj:`int`):
-            Number of samples to include.
-
-    Example:
-        >>> import torchsig.transforms as ST
-        >>> # Crop inputs to first 256 samples
-        >>> transform = ST.TimeCrop(crop_type='start', length=256)
-        >>> # Crop inputs to center 512 samples
-        >>> transform = ST.TimeCrop(crop_type='center', length=512)
-        >>> # Crop inputs to last 1024 samples
-        >>> transform = ST.TimeCrop(crop_type='end', length=1024)
-        >>> # Randomly crop any 2048 samples from input
-        >>> transform = ST.TimeCrop(crop_type='random', length=2048)
-
-    """
-
-    def __init__(
-        self,
-        crop_type: str = "random",
-        crop_length: int = 256,
-        signal_length: int = 1024,
-    ) -> None:
-        super(TimeCrop, self).__init__()
-        self.crop_type = crop_type
-        self.crop_length = crop_length
-        self.signal_length = signal_length
-        if self.crop_type not in ("start", "center", "end", "random"):
-            raise ValueError(
-                "Crop type must be: `start`, `center`, `end`, or `random`")
-
-        self.string = (
-            self.__class__.__name__
-            + "("
-            + "crop_type={}, ".format(crop_type)
-            + "length={}".format(crop_length)
-            + ")"
-        )
-
-    def parameters(self) -> tuple:
-        if self.crop_type == "start":
-            start = 0
-        elif self.crop_type == "end":
-            start = self.signal_length - self.crop_length
-        elif self.crop_type == "center":
-            start = (self.signal_length - self.crop_length) // 2
-        elif self.crop_type == "random":
-            start = np.random.randint(0, self.signal_length - self.crop_length)
-
-        return start, self.crop_length
-
-    def check_time_bounds(self, signal: Signal, params: tuple) -> float:
-        """
-            Method checks new start and stop times to ensure signal is not cropped out
-            of view
-        """
-        start_list = []
-        start, crop_length = params
-
-        for meta in signal["metadata"]:
-            original_start_sample = meta["start"] * \
-                data_shape(signal["data"])[0]
-            original_stop_sample = meta["stop"] * data_shape(signal["data"])[0]
-            # new_start_sample = original_start_sample - start
-            new_start_sample = start
-            new_stop_sample = original_stop_sample - start
-            start_clip = np.clip(
-                float(new_start_sample / crop_length), a_min=0.0, a_max=1.0)
-            stop_clip = np.clip(
-                float(new_stop_sample / crop_length), a_min=0.0, a_max=1.0)
-            duration = stop_clip - start_clip
-            if duration < .001:
-                start_list.append(
-                    int(meta["start"] * data_shape(signal["data"])[0]))
-            else:
-                start_list.append(int(new_start_sample))
-
-        return np.min(start_list), crop_length
-
-    def transform_data(self, signal: Signal, params: tuple) -> Signal:
-
-        if len(signal["metadata"]) == 0:
-            return signal
-
-        if len(signal["data"]["samples"]) == self.crop_length:
-            return signal
-
-        params = self.check_time_bounds(signal, params)
-        # if signal["metadata"][0]["num_samples"] < self.crop_length:
-        if data_shape(signal["data"])[0] < self.crop_length:
-            raise ValueError(
-                "Input data length {} is less than requested length {}".format(
-                    data_shape(signal["data"])[0], self.crop_length
-                )
-            )
-
-        signal["data"]["samples"] = F_LEGACY.time_crop(
-            signal["data"]["samples"], params[0], self.crop_length)
-        return signal
-
-    def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-
-        params = self.check_time_bounds(signal, params)
-        start, crop_length = params
-        for meta in signal["metadata"]:
-            original_start_sample = meta["start"] * \
-                data_shape(signal["data"])[0]
-            original_stop_sample = meta["stop"] * data_shape(signal["data"])[0]
-            new_start_sample = original_start_sample - start
-            new_stop_sample = original_stop_sample - start
-            meta["start"] = np.clip(
-                float(new_start_sample / crop_length), a_min=0.0, a_max=1.0)
-            meta["stop"] = np.clip(
-                float(new_stop_sample / crop_length), a_min=0.0, a_max=1.0)
-            meta["duration"] = meta["stop"] - meta["start"]
-            meta["num_samples"] = crop_length
-
-        return signal
-
-
 class AmplitudeReversal(DatasetTransform):
     """Applies an amplitude reversal to the input tensor by applying a value of
     -1 to each sample. Effectively the same as a static phase shift of pi
-
     """
 
-    def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        signal["data"]["samples"] = F_LEGACY.amplitude_reversal(
-            signal["data"]["samples"])
-        return signal
+    def __init__(self) -> None:
+        super().__init__()
 
-
-class AmplitudeScale(DatasetTransform):
-    """Scales the amplitude of the input tensor
-
-    Args:
-        scale (:py:class:`~Callable`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            The scaling factor to apply.
-            * If Callable, produces a sample by calling scale()
-            * If float, scale is fixed at the value provided  
-            * If list, scale is any element in the list
-            * If tuple, scale is in range of (tuple[0], tuple[1])
-
-    Example:
-        >>> import torchsig.transforms as ST
-        >>> # Fixed scale of 2.0
-        >>> transform = ST.AmplitudeScale(2.0)
-        >>> # Random scale between 0.5 and 2.0
-        >>> transform = ST.AmplitudeScale((0.5, 2.0))
-    """
-
-    def __init__(
-        self,
-        scale: NumericParameter = (0.5, 2.0),
-        **kwargs
-    ) -> None:
-        super(AmplitudeScale, self).__init__(**kwargs)
-        self.scale = to_distribution(scale, self.random_generator)
-        self.string = f"{self.__class__.__name__}(scale={scale})"
-
-    def parameters(self) -> tuple:
-        return (float(self.scale()),)
-
-    def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        scale_value = params[0]
-        signal["data"]["samples"] = F_LEGACY.amplitude_scale(
-            signal["data"]["samples"], scale_value)
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        """Apply amplitude reversal to signal."""
+        # Apply the transformation to the signal data
+        signal.data = F_LEGACY.amplitude_reversal(signal.data)
+        # Ensure the data type is preserved
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
         return signal
 
 
 class RandomFrequencyShift(DatasetTransform):
-    """Shifts each tensor in freq by freq_shift along the time dimension.
+    """Shifts each signal in frequency by freq_shift along the time dimension.
 
     Args:
         freq_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
@@ -368,67 +201,88 @@ class RandomFrequencyShift(DatasetTransform):
             * If int or float, freq_shift is fixed at the value provided
             * If list, freq_shift is any element in the list
             * If tuple, freq_shift is in range of (tuple[0], tuple[1])
-
-    Example:
-        >>> import torchsig.transforms as ST
-        >>> # Frequency shift inputs with uniform distribution in -fs/4 and fs/4
-        >>> transform = ST.RandomFrequencyShift(freq_shift=(-0.25, 0.25))
-        >>> # Frequency shift inputs always fs/10
-        >>> transform = ST.RandomFrequencyShift(freq_shift=0.1)
-        >>> # Frequency shift inputs with normal distribution with stdev .1
-        >>> transform = ST.RandomFrequencyShift(freq_shift=lambda size: np.random.normal(0, .1, size))
-        >>> # Frequency shift inputs with either -fs/4 or fs/4 (discrete)
-        >>> transform = ST.RandomFrequencyShift(freq_shift=[-.25, .25])
-
     """
 
     def __init__(self, freq_shift: NumericParameter = (-0.5, 0.5), **kwargs) -> None:
-        super(RandomFrequencyShift, self).__init__(**kwargs)
-        self.freq_shift = to_distribution(freq_shift, self.random_generator)
-        self.string = (
-            self.__class__.__name__ +
-            "(" + "freq_shift={}".format(freq_shift) + ")"
-        )
+        super().__init__(**kwargs)
+        self.freq_shift = get_distribution(freq_shift, np.random.RandomState())
 
-    def parameters(self) -> tuple:
-        return (self.freq_shift(),)
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        """Apply frequency shift to signal."""
+        # Get shift amount
+        freq_shift = self.freq_shift()
 
-    def check_freq_bounds(self, signal: Signal, freq_shift: float) -> float:
+        # Check bounds to ensure frequencies stay within valid range
+        freq_shift = self._check_freq_bounds(signal, freq_shift)
+
+        # Apply frequency shift
+        signal.data = np.ascontiguousarray(
+            F_LEGACY.freq_shift(signal.data, freq_shift))
+
+        # Update metadata
+        self._transform_metadata(signal, freq_shift)
+
+        # Ensure the data type is preserved
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+
+        self.update(signal)
+        return signal
+
+    def _check_freq_bounds(self, signal: DatasetSignal, freq_shift: float) -> float:
         """
-            Method checks frequency mins and maxes and adjust the new_rate to ensure
-            frequency bounds stay within the +-.5 boundary.
+        Ensure frequency shift doesn't cause aliasing by keeping frequencies
+        within the [-0.5, 0.5] range.
         """
-        ret_list = []
-        for meta in signal["metadata"]:
-            test_lf = meta["lower_freq"] + freq_shift
-            test_hf = meta["upper_freq"] + freq_shift
-            if test_lf < -.5 or test_hf > .5:
-                if test_lf < -.5:
-                    new_shift = -.5 - meta['lower_freq']
+        # First, apply a basic constraint to the frequency shift
+        # This prevents extreme values immediately
+        constrained_shift = max(-1.0, min(1.0, freq_shift))
+
+        valid_shifts = []
+
+        for meta in signal.metadata:
+            try:
+                # Check if proposed shift would move frequencies out of bounds
+                test_lf = meta.lower_freq + constrained_shift
+                test_hf = meta.upper_freq + constrained_shift
+
+                if test_lf < -0.5:
+                    # Calculate shift that would put lower_freq exactly at -0.5
+                    safe_shift = -0.5 - meta.lower_freq
+                    valid_shifts.append(safe_shift)
+                elif test_hf > 0.5:
+                    # Calculate shift that would put upper_freq exactly at 0.5
+                    safe_shift = 0.5 - meta.upper_freq
+                    valid_shifts.append(safe_shift)
                 else:
-                    new_shift = .5 - meta['upper_freq']
-                ret_list.append(new_shift)
-            else:
-                ret_list.append(freq_shift)
-        return find_nearest(ret_list, 0.)
+                    # Current shift is fine
+                    valid_shifts.append(constrained_shift)
+            except Exception:
+                # If any calculation errors occur, use the constrained original shift
+                valid_shifts.append(constrained_shift)
 
-    def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        freq_shift = self.check_freq_bounds(signal, params[0])
-        signal["data"]["samples"] = F_LEGACY.freq_shift(
-            signal["data"]["samples"], freq_shift)
+        # If no valid shifts were calculated, return the constrained original
+        if not valid_shifts:
+            return constrained_shift
 
-        return signal
+        # Find the shift closest to 0.0 (minimum change)
+        valid_shifts = np.array([s for s in valid_shifts if -1.0 <= s <= 1.0])
+        if len(valid_shifts) == 0:
+            return constrained_shift
 
-    def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        freq_shift = self.check_freq_bounds(signal, params[0])
-        for meta in signal["metadata"]:
-            # Check bounds for partial signals
-            meta["lower_freq"] += freq_shift
-            meta["upper_freq"] += freq_shift
-            meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
-            meta["center_freq"] = meta["lower_freq"] + meta["bandwidth"] * 0.5
+        return valid_shifts[np.abs(valid_shifts).argmin()]
 
-        return signal
+    def _transform_metadata(self, signal: DatasetSignal, freq_shift: float) -> None:
+        """Update metadata after frequency shift."""
+        for meta in signal.metadata:
+            # Only update metadata with frequency fields
+            # Update the frequency information
+            meta.lower_freq += freq_shift
+            meta.upper_freq += freq_shift
+
+            # Update bandwidth and center frequency if they exist
+            meta.bandwidth = meta.upper_freq - meta.lower_freq
+
+            meta.center_freq = meta.lower_freq + (meta.bandwidth / 2)
 
 
 class SpectrogramRandomResizeCrop(DatasetTransform):

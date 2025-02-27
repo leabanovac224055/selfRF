@@ -1,16 +1,17 @@
 
-from typing import Any, Literal, Sequence
+from typing import Sequence
 from copy import deepcopy
 import numpy as np
 import torch
 
 from torchsig.signals.signal_types import Signal, DatasetSignal
 from torchsig.transforms.base_transforms import Transform, Compose
-from torchsig.transforms.dataset_transforms import DatasetTransform
+from torchsig.transforms.dataset_transforms import DatasetTransform, AWGN
 from torchsig.transforms.transform_utils import (
     get_distribution,
     NumericParameter
 )
+import torchsig.transforms.functional as torchsig_F
 from copy import deepcopy
 import numpy as np
 
@@ -18,6 +19,7 @@ from . import functional as F
 
 __all__ = [
     "MultiViewTransform",
+    "RandomAWGN",
     "AmplitudeScale",
     "ToDtype",
     "ToTensor",
@@ -45,6 +47,43 @@ class MultiViewTransform(Transform):
         result = deepcopy(signal)
         result.data = [view.data for view in views]
         return result
+
+
+class RandomAWGN(DatasetTransform):
+    """
+    Adds white Gaussian noise to a signal with a random noise power in the given range.
+
+    Args:
+        noise_power_db (:py:class:`~Callable`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+            The noise power in dB to apply.
+            * If
+                * Callable, produces a sample by calling noise_power_db()
+                * float, noise_power_db is fixed at the value provided
+                * list, noise_power_db is any element in the list
+                * tuple, noise_power_db is in range of (tuple[0], tuple[1])
+
+    """
+
+    def __init__(
+        self,
+        noise_power_db: NumericParameter = (0, 20.0),
+        **kwargs
+    ) -> None:
+        super().__init__(**kwargs)
+        self.noise_power_db_distribution = get_distribution(noise_power_db)
+
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        """Apply random AWGN to the signal."""
+        noise_power_db = self.noise_power_db_distribution()
+        signal.data = torchsig_F.awgn(
+            signal.data,
+            noise_power_db=noise_power_db,
+            rng=self.random_generator
+        )
+        # signal.data = signal.data.astype(torchsig_complex_data_type)
+
+        self.update(signal)
+        return signal
 
 
 class AmplitudeScale(DatasetTransform):
