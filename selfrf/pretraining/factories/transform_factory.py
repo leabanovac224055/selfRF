@@ -11,7 +11,7 @@ from selfrf.transforms import (
     BYOLTransform,
 )
 from selfrf.pretraining.config import BaseConfig, TrainingConfig, EvaluationConfig
-from selfrf.transforms.extra.target_transforms import ConstantTargetTransform
+from selfrf.transforms.extra.target_transforms import BBOXLabel
 from selfrf.pretraining.utils.utils import get_class_list
 from selfrf.pretraining.utils.enums import TransformType, SSLModelType, DatasetType
 
@@ -66,15 +66,13 @@ class TransformFactory:
         if config.dataset == DatasetType.TORCHSIG_NARROWBAND:
             if config.family:
                 return Compose([
-                    FamilyIndex(class_list=get_class_list(config))
+                    FamilyIndex(class_list=get_class_list(config)),
+                    ClassIndex(),
                 ])
-            return ClassIndex(class_list=get_class_list(config))
+            return ClassIndex()
 
         if config.dataset == DatasetType.TORCHSIG_WIDEBAND:
-            # the wideband dataset cannot be used for online linear evaluation
-            # therefore, we map the targets to a constant value
-            # in order to unequal batch sizes
-            return ConstantTargetTransform(0)
+            return BBOXLabel()
 
 
 def build_transform(config: Union[TrainingConfig, EvaluationConfig]) -> Transform:

@@ -36,6 +36,7 @@ class BaseConfig:
     root: str = DEFAULT_ROOT
     download: bool = False
     family: bool = DEFAULT_FAMILY
+    impairment_level: int = 2
 
     # Add private storage field
     _custom_iq_samples: Optional[int] = None
@@ -93,6 +94,11 @@ def add_base_config_args(parser: argparse.ArgumentParser) -> None:
         '--family',
         type=lambda x: x.lower() == 'true',
         default=DEFAULT_FAMILY,
+    )
+    parser.add_argument(
+        '--impairment-level',
+        type=int,
+        default=2,
     )
     parser.add_argument(
         '--num-iq-samples',

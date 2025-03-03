@@ -11,7 +11,6 @@ def collate_fn(batch):
     views, targets = zip(*batch)
     # Unpacks [(view1_1, view1_2), (view2_1, view2_2), ...]
     view1s, view2s = zip(*views)
-
     return (
         torch.stack(view1s),  # Batch of first views
         torch.stack(view2s)   # Batch of second views

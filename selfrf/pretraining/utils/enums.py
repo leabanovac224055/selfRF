@@ -133,7 +133,6 @@ class BackboneType(Enum):
     def from_string(cls, name: str) -> 'BackboneType':
         """Convert string to BackboneType enum."""
         try:
-            print(name)
             # Try direct match with enum name
             return cls[name.upper()]
         except KeyError:
