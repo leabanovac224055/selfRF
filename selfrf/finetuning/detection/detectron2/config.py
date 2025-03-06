@@ -187,15 +187,10 @@ def add_detectron2_config_args(parser: argparse.ArgumentParser) -> None:
 
 def print_config(config: Detectron2Config) -> None:
     """Print config in a structured format"""
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    ENDC = '\033[0m'
-
-    print(f"\n{BLUE}Detectron2 Configuration:{ENDC}")
+    print("\nDetectron2 Configuration:")
     for field in fields(config):
         value = getattr(config, field.name)
-        print(f"  {CYAN}{field.name}:{ENDC} {GREEN}{value}{ENDC}")
+        print(f"  {field.name}: {value}")
 
 
 def build_detectron2_config(config: Detectron2Config = Detectron2Config()) -> CfgNode:
@@ -211,8 +206,8 @@ def build_detectron2_config(config: Detectron2Config = Detectron2Config()) -> Cf
     cfg = get_cfg()
     cfg.merge_from_file(model_zoo.get_config_file(
         "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"))
-    cfg.DATASETS.TRAIN = ("rfcoco_train",)
-    cfg.DATASETS.TEST = ("rfcoco_val",)
+    cfg.DATASETS.TRAIN = ("torchsig_wideband_train",)
+    cfg.DATASETS.TEST = ("torchsig_wideband_val",)
     # Disable all augmentations
     cfg.INPUT.MIN_SIZE_TRAIN = (512,)  # Only one size, no range
     cfg.INPUT.MAX_SIZE_TRAIN = 512

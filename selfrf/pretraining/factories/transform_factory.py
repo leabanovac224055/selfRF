@@ -9,6 +9,7 @@ from selfrf.transforms import (
     ToSpectrogramTensor,
     ToTensor,
     BYOLTransform,
+    SpectrogramNormalize,
 )
 from selfrf.pretraining.config import BaseConfig, TrainingConfig, EvaluationConfig
 from selfrf.transforms.extra.target_transforms import BBOXLabel
@@ -23,6 +24,7 @@ class TransformFactory:
             Spectrogram(
                 fft_size=config.nfft,
             ),
+            SpectrogramNormalize(),
             ToSpectrogramTensor(
                 to_float_32=config.to_float_32,
             ),

@@ -8,7 +8,7 @@ from torchsig.signals.signal_types import Signal, SignalMetadata, DatasetSignal
 from torchsig.transforms.dataset_transforms import DatasetTransform
 from torchsig.transforms import functional as F
 from torchsig.utils.dsp import torchsig_complex_data_type
-from torchsig.transforms.transform_utils import (
+from selfrf.transforms.extra.torchsig_legacy_utils import (
     get_distribution,
     NumericParameter,
     IntParameter,

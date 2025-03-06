@@ -1,57 +1,71 @@
 import os
-from pathlib import Path
 
 from detectron2.engine import DefaultTrainer
-from detectron2.data import build_detection_train_loader, build_detection_test_loader
 from detectron2.evaluation import COCOEvaluator
+from detectron2.data import build_detection_test_loader, build_detection_train_loader
 
 from selfrf.finetuning.detection.detectron2.config import Detectron2Config, build_detectron2_config
-from selfrf.finetuning.detection.detectron2.mapper import rf_coco_evaluation_mapper, rfcoco_mapper
+
+from .mapper import mapper
 
 
-class SpectrogramTrainer(DefaultTrainer):
-
+class Trainer(DefaultTrainer):
     @classmethod
     def build_train_loader(cls, cfg):
         return build_detection_train_loader(
             cfg,
-            mapper=rfcoco_mapper
+            mapper=mapper
         )
 
     @classmethod
-    def build_evaluator(cls, cfg, dataset_name):
-        """ Build evaluator for validation dataset """
+    def build_evaluator(cls, cfg, dataset_name, output_folder=None):
+        """
+        Create evaluator(s) for the given dataset.
+        This uses the COCOEvaluator for object detection evaluation.
+
+        Args:
+            cfg: Detectron2 config
+            dataset_name: Dataset name (e.g., "torchsig_wideband_val")
+            output_folder: Output directory for evaluation files
+        """
+        if output_folder is None:
+            output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
+            os.makedirs(output_folder, exist_ok=True)
+
         return COCOEvaluator(
             dataset_name,
-            output_dir=cfg.OUTPUT_DIR / Path("eval"),
-            tasks=("bbox",),
-            distributed=False
+            output_dir=output_folder,
+            tasks=("bbox",),  # Only evaluate bounding boxes
+            use_fast_impl=True
         )
 
     @classmethod
     def build_test_loader(cls, cfg, dataset_name):
-        """ Build test loader using the same mapper as training """
+        """
+        Returns the test loader for a dataset.
+        Uses the same mapper as the train loader to ensure consistency.
+        """
         return build_detection_test_loader(
             cfg,
             dataset_name,
-            mapper=rf_coco_evaluation_mapper
+            mapper=mapper
         )
-
-    @classmethod
-    def test(cls, cfg, model, evaluators=None):
-        """ Run evaluation during training """
-        return super().test(cfg, model, evaluators)
 
 
 def do_train(config: Detectron2Config):
-
+    """
+    Train a Detectron2 model with the given configuration.
+    """
     cfg = build_detectron2_config(config)
 
     # Save directory
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
 
-    trainer = SpectrogramTrainer(cfg)
+    # Create trainer with COCO evaluation capabilities
+    trainer = Trainer(cfg)
 
+    # Load checkpoint if available
     trainer.resume_or_load(resume=False)
 
+    # Run training
     trainer.train()

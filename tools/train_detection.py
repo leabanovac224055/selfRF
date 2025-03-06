@@ -1,24 +1,31 @@
-import torch
 import argparse
 import os
 
 from detectron2.utils.logger import setup_logger
 
 from selfrf.finetuning.detection.detectron2.config import Detectron2Config, add_detectron2_config_args, print_config
-from selfrf.finetuning.detection.detectron2.register import register_rfcoco_dataset
+from selfrf.finetuning.detection.detectron2.register import register_dataset
 from selfrf.finetuning.detection.detectron2.lazy_trainer import do_train_lazy
 from selfrf.finetuning.detection.detectron2.trainer import do_train
+from selfrf.finetuning.detection.detectron2.visualizer import visualize_dataset
 
 setup_logger()
 
 
 def train(config: Detectron2Config):
     """Register datasets with detectron2."""
-    # Convert relative path to absolute if needed
+
     if not os.path.isabs(config.root):
         config.root = os.path.abspath(config.root)
 
-    register_rfcoco_dataset(config.root, config.dataset_name, download=True)
+    register_dataset(
+        config.root,
+        config.dataset_name,
+        download=False,
+        force=True,
+    )
+    visualize_dataset(config.root, config.dataset_name, 10)
+    return
 
     if config.model_type.is_lazy_config:
         do_train_lazy(config)

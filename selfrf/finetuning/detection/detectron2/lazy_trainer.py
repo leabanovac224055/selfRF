@@ -18,7 +18,8 @@ from detectron2.data import (
 
 from selfrf.finetuning.detection.detectron2.config import Detectron2Config
 from selfrf.finetuning.detection.detectron2.model_conf.builds import get_build_functions
-from selfrf.finetuning.detection.detectron2.trainer import rfcoco_mapper
+
+from .mapper import mapper
 
 
 def do_train_lazy(config: Detectron2Config):
@@ -41,9 +42,9 @@ def do_train_lazy(config: Detectron2Config):
     # train_loader = instantiate(cfg.dataloader.train)
 
     train_loader = build_detection_train_loader(
-        mapper=rfcoco_mapper,
+        mapper=mapper,
         dataset=get_detection_dataset_dicts(
-            names="rfcoco_train",
+            names="torchsig_wideband_train",
             filter_empty=False,  # Keep all spectrograms
         ),
         total_batch_size=config.ims_per_batch,

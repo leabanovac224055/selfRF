@@ -27,6 +27,6 @@ python tools/pretraining.py --num-epochs 10 --to-float-32 true --backbone resnet
 
 ## Todos for this project:
 
-- fix transforms
+- fix bbox labels and spectrogram
 - update number of classes in vitdet
 - vitdet evaluation

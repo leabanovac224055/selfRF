@@ -6,14 +6,15 @@ import torch
 
 from torchsig.signals.signal_types import Signal, DatasetSignal
 from torchsig.transforms.base_transforms import Transform, Compose
-from torchsig.transforms.dataset_transforms import DatasetTransform, AWGN
-from torchsig.transforms.transform_utils import (
-    get_distribution,
-    NumericParameter
-)
+from torchsig.transforms.dataset_transforms import DatasetTransform
 import torchsig.transforms.functional as torchsig_F
 from copy import deepcopy
 import numpy as np
+
+from selfrf.transforms.extra.torchsig_legacy_utils import (
+    get_distribution,
+    NumericParameter
+)
 
 from . import functional as F
 
@@ -22,6 +23,7 @@ __all__ = [
     "RandomAWGN",
     "AmplitudeScale",
     "ToDtype",
+    "SpectrogramNormalize",
     "ToTensor",
     "ToSpectrogramTensor",
 ]
@@ -133,6 +135,28 @@ class ToDtype(DatasetTransform):
         """
         # Use astype to convert the NumPy array to the new dtype.
         signal.data = signal.data.astype(self.dtype)
+        self.update(signal)
+        return signal
+
+
+class SpectrogramNormalize(DatasetTransform):
+    """Normalize spectrogram values to range [0,1]
+    """
+
+    def __init__(
+        self,
+        **kwargs
+    ) -> None:
+        super().__init__(**kwargs)
+
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+
+        # Simple min-max normalization
+        min_val = np.min(signal.data)
+        max_val = np.max(signal.data)
+        if max_val > min_val:
+            signal.data = (signal.data - min_val) / (max_val - min_val)
+
         self.update(signal)
         return signal
 

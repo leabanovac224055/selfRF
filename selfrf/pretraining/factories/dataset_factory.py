@@ -54,7 +54,8 @@ def get_wideband_metadata(config: BaseConfig) -> WidebandMetadata:
         num_iq_samples_dataset=config.num_iq_samples,
         impairment_level=config.impairment_level,
         fft_size=config.nfft,
-        num_signals_max=10,
+        num_signals_min=1,
+        num_signals_max=5,
     )
 
 
