@@ -23,6 +23,12 @@ DEFAULT_BACKBONE_PROVIDER = BackboneProvider.TIMM
 DEFAULT_EMBEDDING_DIM = 2048
 DEFAULT_DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 DEFAULT_TO_FLOAT_32 = False
+DEFAULT_INPUT_CHANNELS = 2
+DEFAULT_DROP_PATH_RATE = 0.0
+DEFAULT_DROP_RATE = 0.3
+DEFAULT_DS_METHOD = "downsample"
+DEFAULT_DS_RATE = 2
+
 DATASET_IQ_SAMPLES = {
     DatasetType.TORCHSIG_WIDEBAND: 262144,
     DatasetType.TORCHSIG_NARROWBAND: 4096,
@@ -66,6 +72,13 @@ class BaseConfig:
 
     device: torch.device = DEFAULT_DEVICE
     to_float_32: bool = DEFAULT_TO_FLOAT_32
+
+    # Add XCiT-specific parameters
+    input_channels: int = DEFAULT_INPUT_CHANNELS
+    drop_path_rate: float = DEFAULT_DROP_PATH_RATE
+    drop_rate: float = DEFAULT_DROP_RATE
+    ds_method: str = DEFAULT_DS_METHOD
+    ds_rate: int = DEFAULT_DS_RATE
 
 
 def add_base_config_args(parser: argparse.ArgumentParser) -> None:

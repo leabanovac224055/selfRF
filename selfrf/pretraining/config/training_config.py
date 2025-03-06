@@ -42,6 +42,28 @@ def add_training_config_args(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_NUM_EPOCHS
     )
 
+    # Add XCiT-specific parameters
+    parser.add_argument(
+        '--drop-path-rate',
+        type=float,
+        default=BaseConfig.drop_path_rate
+    )
+    parser.add_argument(
+        '--drop-rate',
+        type=float,
+        default=BaseConfig.drop_rate
+    )
+    parser.add_argument(
+        '--ds-method',
+        type=str,
+        default=BaseConfig.ds_method
+    )
+    parser.add_argument(
+        '--ds-rate',
+        type=int,
+        default=BaseConfig.ds_rate
+    )
+
 
 def parse_training_config() -> TrainingConfig:
     """Parse command line arguments into a TrainingConfig object.
@@ -60,13 +82,17 @@ def parse_training_config() -> TrainingConfig:
 
     # Create TrainingConfig by combining base config and training args
     training_config = TrainingConfig(
-        **vars(base_config),  # Unpack base config
+        **{k: v for k, v in vars(base_config).items() if k not in ["drop_path_rate", "drop_rate", "ds_method", "ds_rate"]},
 
         # Add training fields
         online_linear_eval=args.online_linear_eval,
         ssl_model=args.ssl_model,
         training_path=args.training_path,
-        num_epochs=args.num_epochs
+        num_epochs=args.num_epochs,
+        drop_path_rate=args.drop_path_rate,
+        drop_rate=args.drop_rate,
+        ds_method=args.ds_method,
+        ds_rate=args.ds_rate,
     )
 
     return training_config

@@ -9,6 +9,9 @@ from selfrf.models.spectrogram_models import build_resnet2d, build_vit
 from selfrf.models.ssl_models import BYOL
 from selfrf.pretraining.utils.enums import BackboneArchitecture, SSLModelType
 
+# Import the XCiT class from the xcit1d script
+from selfrf.models.iq_models.xcit.xcit1d import XCiT1d
+
 
 @dataclass(frozen=True)  # makes the dataclass immutable
 class BackboneConfig:
@@ -21,6 +24,17 @@ class ModelFactory:
         BackboneConfig(BackboneArchitecture.RESNET, False): lambda **kwargs: build_resnet1d(input_channels=2, ** kwargs),
         BackboneConfig(BackboneArchitecture.RESNET, True): lambda **kwargs: build_resnet2d(input_channels=1, ** kwargs),
         BackboneConfig(BackboneArchitecture.VIT, True): lambda **kwargs: build_vit(input_channels=1, ** kwargs),
+
+        # Register the XCiT1d model with the backbone registry
+        BackboneConfig(BackboneArchitecture.XCIT, False): lambda **kwargs: XCiT1d(
+            input_channels=kwargs.get('input_channels', 2),
+            n_features=kwargs.get('n_features', 512),
+            xcit_version=kwargs.get('xcit_version', 'nano_12_p16_224'),
+            drop_path_rate=kwargs.get('drop_path_rate', 0.0),
+            drop_rate=kwargs.get('drop_rate', 0.3),
+            ds_method=kwargs.get('ds_method', 'downsample'),
+            ds_rate=kwargs.get('ds_rate', 2),
+        ),
     }
 
     _ssl_registry: Dict[SSLModelType, Type] = {
@@ -57,11 +71,24 @@ class ModelFactory:
                 "\n".join(f"- {c}" for c in available_configs)
             )
 
-        return builder(
-            version=config.backbone.get_size().value,
-            provider=config.backbone_provider,
-            n_features=config.embedding_dim
-        )
+        if backbone_arch == BackboneArchitecture.XCIT:
+            # If the backbone is XCiT, we need to pass the input_channels, n_features, version, drop_rate, ds_method, and ds_rate
+            return builder(
+                input_channels=config.input_channels,
+                n_features=config.embedding_dim,
+                version=config.backbone.get_size().value,
+                drop_path_rate=config.drop_path_rate,
+                drop_rate=config.drop_rate,
+                ds_method=config.ds_method,
+                ds_rate=config.ds_rate
+            )
+
+        else:
+            return builder(
+                version=config.backbone.get_size().value,
+                provider=config.backbone_provider,
+                n_features=config.embedding_dim
+            )
 
     @classmethod
     def create_ssl_model(cls, config: TrainingConfig) -> torch.nn.Module:
