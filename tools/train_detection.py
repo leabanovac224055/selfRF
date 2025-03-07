@@ -25,8 +25,7 @@ def train(config: Detectron2Config):
     register_dataset(config)
 
     if VISUALIZE:
-        visualize_dataset(config.root, config.dataset_path,
-                          VISUALIZE_N_SAMPLES)
+        visualize_dataset(config, VISUALIZE_N_SAMPLES)
 
     if config.model_type.is_lazy_config:
         do_train_lazy(config)
