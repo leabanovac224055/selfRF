@@ -4,63 +4,75 @@ from pathlib import Path
 from detectron2.data.datasets import register_coco_instances
 
 
+import numpy as np
 from torchsig.datasets.datamodules import WidebandDataModule
 from torchsig.datasets.wideband import StaticWideband
-from torchsig.datasets.dataset_metadata import WidebandMetadata
+from torchsig.datasets.default_configs.loader import get_default_yaml_config
+from torchsig.datasets.dataset_utils import to_dataset_metadata
 from torchsig.transforms.dataset_transforms import Spectrogram
+from torchsig.transforms.base_transforms import Compose
+
 from torchsig.transforms.target_transforms import (
     ClassName,
     FamilyName,
     ClassIndex,
     FamilyIndex,
+    SNR,
 )
 
+from selfrf.finetuning.detection.detectron2.config import Detectron2Config
 from selfrf.transforms import (
-    SpectrogramNormalize,
+    SpectrogramImage,
 )
-from selfrf.transforms.extra.target_transforms import BBOXLabel
+from selfrf.transforms.extra.target_transforms import BBOXLabel, ConstantFamilyName, ConstantSignalIndex, ConstantSignalName
 
 from .create_coco import convert_datamodule_to_coco
 
-SEED = 123456789
 FFT_SIZE = 512
-NUM_SAMPLES = 1000
+NUM_SAMPLES = 100
 
 
 def register_dataset(
-    root: Path,
-    dataset_path: str,
-    download: bool = False,
-    force: bool = False,
+    config: Detectron2Config,
 ):
     """Register RF COCO format dataset with detectron2"""
+    root = Path(config.root)
+    dataset_path = Path(config.dataset_path)
+
+    metadata = get_default_yaml_config(
+        dataset_type="wideband",
+        impairment_level=2,
+        train=True,
+    )
+    metadata["overrides"]["snr_db_min"] = 10
+    metadata["overrides"]["signal_bandwidth_min"] = 1_000_000
+    metadata["overrides"]["signal_bandwidth_max"] = 1_000_0000
+    metadata["overrides"]["impairment_level"] = 2
+    metadata["overrides"]["num_iq_samples_dataset"] = FFT_SIZE**2
+    metadata["overrides"]["fft_size"] = FFT_SIZE
+
+    metadata = to_dataset_metadata(metadata)
 
     datamodule = WidebandDataModule(
-        root=root,
-        dataset_metadata=WidebandMetadata(
-            seed=SEED,
-            num_iq_samples_dataset=FFT_SIZE * FFT_SIZE,
-            impairment_level=2,
-            fft_size=FFT_SIZE,
-            num_signals_min=1,
-            num_signals_max=3,
-        ),
+        root=root / dataset_path,
+        dataset_metadata=metadata,
         num_samples_train=NUM_SAMPLES,
-        transforms=[Spectrogram(
-            fft_size=FFT_SIZE,
-        )],
-        target_transforms=[
-            BBOXLabel(),  # bbox
-            FamilyName(),  # category name
-            FamilyIndex(),  # category index
-            FamilyName(),  # super category name
+        transforms=[
+            Compose([
+                Spectrogram(
+                    fft_size=FFT_SIZE,
+                ),
+                SpectrogramImage()
+            ]),
         ],
+        target_transforms=get_target_transforms(config=config),
     )
 
     datamodule.prepare_data()
     datamodule.setup("fit")
 
-    path_to_coco = convert_datamodule_to_coco(datamodule, dataset_path, force)
+    path_to_coco = convert_datamodule_to_coco(
+        datamodule, config.force_recreation)
 
     dataset_name = "torchsig_wideband"
 
@@ -91,7 +103,32 @@ def build_annotations_path(coco_path: Path, split: str) -> str:
     return str(coco_path / "annotations" / f"instances_{split}.json")
 
 
-def to_detectron2_dicts(dataset: StaticWideband):
-    """Convert dataset to detectron2 dicts"""
-    print(dataset.dataset_metadata)
-    # load labels
+def get_target_transforms(
+    config: Detectron2Config,
+) -> list:
+    """Get target transform for detectron2"""
+
+    if config.mode == "detection":
+        return [
+            BBOXLabel(),  # bbox
+            ConstantSignalName("signal"),  # category name
+            ConstantSignalIndex(0),  # category index
+            ConstantFamilyName("signal"),  # super category name
+            SNR(),  # SNR
+        ]
+    elif config.mode == "recognition":
+        return [
+            BBOXLabel(),  # bbox
+            ClassName(),  # category name
+            ClassIndex(),  # category index
+            FamilyName(),  # super category name
+            SNR(),  # SNR
+        ]
+    elif config.mode == "family_recognition":
+        return [
+            BBOXLabel(),  # bbox
+            FamilyName(),  # category name
+            FamilyIndex(),  # category index
+            FamilyName(),  # super category name
+            SNR(),  # SNR
+        ]

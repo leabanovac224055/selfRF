@@ -1,6 +1,6 @@
 
 from enum import Enum, unique
-from typing import NamedTuple, Optional
+from typing import Literal, NamedTuple, Optional
 from dataclasses import fields, dataclass
 import argparse
 import torch
@@ -94,11 +94,16 @@ class ModelType(Enum):
 
 
 # Default values as constants
+DEFAULT_NOT_ABSOLUTE_ROOT = False
+DEFAULT_MODE = "family_recognition"
+DEFFAULT_NUM_SAMPLES = 5000
+
+DEFAULT_FORCE_RECREATION = False
+
 DEFAULT_MODEL_TYPE = ModelType.FASTER_RCNN_R50_FPN
-DEFAULT_DOWNLOAD = False
-DEFAULT_DATASET = "wideband_impaired"
+DEFAULT_PATH = "wideband_impaired"
 DEFAULT_WEIGHTS_PATH = ""
-DEFAULT_NUM_CLASSES = 61
+DEFAULT_NUM_CLASSES = 10
 DEFAULT_MAX_ITER = 90_000
 DEFAULT_BASE_LR = 0.0001
 DEFAULT_IMS_PER_BATCH = 8
@@ -109,9 +114,14 @@ DEFAULT_CHECKPOINT_PERIOD = 1000
 class Detectron2Config:
     """Configuration for Detectron2 model training."""
     root: str = ""
+    not_absolute_root: bool = DEFAULT_NOT_ABSOLUTE_ROOT
+    num_samples: int = DEFFAULT_NUM_SAMPLES
+    mode: Literal["detection", "recognition",
+                  "family_recognition"] = DEFAULT_MODE
+    force_recreation: bool = DEFAULT_FORCE_RECREATION
+
     model_type: ModelType = DEFAULT_MODEL_TYPE
-    dataset_name: str = DEFAULT_DATASET
-    download: bool = DEFAULT_DOWNLOAD
+    dataset_path: str = DEFAULT_PATH
     weights_path: str = DEFAULT_WEIGHTS_PATH
     num_classes: int = DEFAULT_NUM_CLASSES
     max_iter: int = DEFAULT_MAX_ITER
@@ -129,6 +139,31 @@ def add_detectron2_config_args(parser: argparse.ArgumentParser) -> None:
         help='Root directory for dataset'
     )
     parser.add_argument(
+        '--not-absolute-root',
+        action='store_true',
+        default=DEFAULT_NOT_ABSOLUTE_ROOT,
+        help='If true, root is not absolute. '
+    )
+    parser.add_argument(
+        '--num-samples',
+        type=int,
+        default=DEFFAULT_NUM_SAMPLES,
+        help='Number of samples to use for training'
+    )
+    parser.add_argument(
+        '--mode',
+        type=str,
+        choices=['detection', 'recognition', 'family_recognition'],
+        default=DEFAULT_MODE,
+        help='Mode of operation: detection or recognition'
+    )
+    parser.add_argument(
+        '--force-recreation',
+        action='store_true',
+        default=DEFAULT_FORCE_RECREATION,
+        help='Force recreation of coco dataset even if it exists'
+    )
+    parser.add_argument(
         '--model-type',
         type=ModelType.from_string,
         choices=list(ModelType),
@@ -136,16 +171,10 @@ def add_detectron2_config_args(parser: argparse.ArgumentParser) -> None:
         help='Model architecture type (e.g., vitdet-vit-l, vitdet-vit-b)'
     )
     parser.add_argument(
-        '--dataset-name',
+        '--dataset-path',
         type=str,
-        default=DEFAULT_DATASET,
-        help='Name of dataset'
-    )
-    parser.add_argument(
-        '--download',
-        type=lambda x: x.lower() == 'true',
-        default=DEFAULT_DOWNLOAD,
-        help='Download dataset model weights'
+        default=DEFAULT_PATH,
+        help='path to dataset directory, relative to root'
     )
     parser.add_argument(
         '--weights-path',
@@ -219,8 +248,8 @@ def build_detectron2_config(config: Detectron2Config = Detectron2Config()) -> Cf
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = config.num_classes
     cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     cfg.INPUT.FORMAT = "L"
-    cfg.MODEL.PIXEL_MEAN = [0.0]  # Already normalized
-    cfg.MODEL.PIXEL_STD = [1.0]   # No scaling needed
+    cfg.MODEL.PIXEL_MEAN = [128.0]  # Mean is 128 for grayscale images
+    cfg.MODEL.PIXEL_STD = [128.0]   # Standard deviation is also roughly 128
 
     # Training parameters
     cfg.SOLVER.IMS_PER_BATCH = config.ims_per_batch

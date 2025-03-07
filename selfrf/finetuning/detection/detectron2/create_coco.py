@@ -5,66 +5,63 @@ from typing import Literal
 import concurrent.futures
 from functools import partial
 
-import cv2
+from matplotlib import pyplot as plt
 from torchsig.datasets.datamodules import WidebandDataModule
-from torchsig.datasets.wideband import StaticWideband
+from torchsig.datasets.wideband import StaticWideband, StaticTorchSigDataset
 from tqdm import tqdm
 
 
-def process_sample(idx, dataset, path_to_image_dir):
+def process_sample(idx, dataset: StaticTorchSigDataset, path_to_image_dir):
     """Process a single sample for parallelization"""
-    try:
-        spectrogram, labels = dataset[idx]
-        filename = f"{idx:010d}.png"
-        image_path = str(path_to_image_dir / filename)
+    spectrogram, labels = dataset.__getitem__(idx)
 
-        # Save the spectrogram as an image
-        cv2.imwrite(image_path, spectrogram, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+    filename = f"{idx:010d}.png"
+    image_path = str(path_to_image_dir / filename)
 
-        height, width = spectrogram.shape
+    plt.imsave(image_path, spectrogram, cmap='gray')
 
-        # Prepare image info
-        image_info = {
-            "id": idx,
-            "file_name": filename,
-            "width": width,
-            "height": height
+    height, width = spectrogram.shape
+    # Prepare image info
+    image_info = {
+        "id": idx,
+        "file_name": filename,
+        "width": width,
+        "height": height
+    }
+
+    # Prepare annotations
+    sample_annotations = []
+    sample_categories = {}
+
+    for label in labels:
+        bbox = label[0]
+        class_name = label[1]
+        class_id = label[2] + 1  # COCO categories are 1-indexed
+        family_name = label[3]
+        snr = label[4]
+
+        sample_categories[class_id] = {
+            "id": class_id,
+            "name": class_name,
+            "supercategory": family_name
         }
 
-        # Prepare annotations
-        sample_annotations = []
-        sample_categories = {}
+        # convert bbox to pixel coordinates
+        x = bbox[0] * width
+        y = bbox[1] * height
+        w = bbox[2] * width
+        h = bbox[3] * height
+        bbox = [x, y, w, h]
+        area = w * h
 
-        for label in labels:
-            bbox = label[0]
-            class_name = label[1]
-            class_id = label[2] + 1  # COCO categories are 1-indexed
-            family_name = label[3]
+        sample_annotations.append({
+            "bbox": bbox,
+            "category_id": class_id,
+            "area": area,
+            "snr": snr,
+        })
 
-            sample_categories[class_id] = {
-                "id": class_id,
-                "name": class_name,
-                "supercategory": family_name
-            }
-
-            # convert bbox to pixel coordinates
-            x = bbox[0] * width
-            y = bbox[1] * height
-            w = bbox[2] * width
-            h = bbox[3] * height
-            bbox = [x, y, w, h]
-            area = w * h
-
-            sample_annotations.append({
-                "bbox": bbox,
-                "category_id": class_id,
-                "area": area
-            })
-
-        return image_info, sample_annotations, sample_categories
-    except Exception as e:
-        print(f"Error processing sample {idx}: {e}")
-        return None, None, None
+    return image_info, sample_annotations, sample_categories
 
 
 def store_spectrograms(
@@ -145,11 +142,10 @@ def convert_dataset_to_coco(
 
 def convert_datamodule_to_coco(
     datamodule: WidebandDataModule,
-    dataset_path: str,
     force: bool = False,
 ) -> Path:
     """Convert datamodule to COCO format"""
-    path_to_coco = datamodule.root / dataset_path / "coco"
+    path_to_coco = datamodule.root / "coco"
 
     if not force and path_to_coco.exists():
         print("COCO format already exists at", path_to_coco)

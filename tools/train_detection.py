@@ -12,20 +12,21 @@ from selfrf.finetuning.detection.detectron2.visualizer import visualize_dataset
 setup_logger()
 
 
+VISUALIZE = False
+VISUALIZE_N_SAMPLES = 100
+
+
 def train(config: Detectron2Config):
     """Register datasets with detectron2."""
-
-    if not os.path.isabs(config.root):
+    # Check if root is absolute
+    if not config.not_absolute_root:  # weired double negation
         config.root = os.path.abspath(config.root)
 
-    register_dataset(
-        config.root,
-        config.dataset_name,
-        download=False,
-        force=True,
-    )
-    visualize_dataset(config.root, config.dataset_name, 10)
-    return
+    register_dataset(config)
+
+    if VISUALIZE:
+        visualize_dataset(config.root, config.dataset_path,
+                          VISUALIZE_N_SAMPLES)
 
     if config.model_type.is_lazy_config:
         do_train_lazy(config)

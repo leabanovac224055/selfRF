@@ -1,6 +1,7 @@
 
 from typing import Sequence
 from copy import deepcopy
+import cv2
 import numpy as np
 import torch
 
@@ -23,7 +24,7 @@ __all__ = [
     "RandomAWGN",
     "AmplitudeScale",
     "ToDtype",
-    "SpectrogramNormalize",
+    "SpectrogramImage",
     "ToTensor",
     "ToSpectrogramTensor",
 ]
@@ -139,23 +140,33 @@ class ToDtype(DatasetTransform):
         return signal
 
 
-class SpectrogramNormalize(DatasetTransform):
+class SpectrogramImage(DatasetTransform):
     """Normalize spectrogram values to range [0,1]
     """
 
     def __init__(
         self,
+        scale: int = 1,  # Default to [0,1] instead of [0,255]
         **kwargs
     ) -> None:
         super().__init__(**kwargs)
+        self.scale = scale
 
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
 
-        # Simple min-max normalization
-        min_val = np.min(signal.data)
-        max_val = np.max(signal.data)
-        if max_val > min_val:
-            signal.data = (signal.data - min_val) / (max_val - min_val)
+        magnitude = np.abs(signal.data)
+
+        magnitude_min = np.min(magnitude)
+        magnitude_max = np.max(magnitude)
+
+        if magnitude_max > magnitude_min:
+            normalized = (magnitude - magnitude_min) / \
+                (magnitude_max - magnitude_min) * self.scale
+        else:
+            normalized = np.zeros_like(
+                magnitude)  # Handle uniform case
+
+        signal.data = normalized
 
         self.update(signal)
         return signal

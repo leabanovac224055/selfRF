@@ -14,45 +14,83 @@ class ConstantTargetTransform(TargetTransform):
 
 class BBOXLabel(TargetTransform):
     """
-    Creates bounding box annotations in XYWH format (top-left corner)
+    Adds an XYHW_label to a signal, in the form of a tuple (class_index, x_min, y_min, width, height),
+    where coordinates are normalized between 0 and 1.
 
-    Format: [x, y, width, height] where:
-    - x: left edge of bounding box (normalized 0-1)
-    - y: top edge of bounding box (normalized 0-1)
-    - width: width of bounding box (normalized 0-1)
-    - height: height of bounding box (normalized 0-1)
+    Attributes:
+        output (str, optional): Structure to aggregate labels ("dict", "list"). Defaults to "list".
     """
+
     output_list = ["list", "dict"]
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.required_metadata = ["class_index", "start", "stop",
-                                  "lower_freq", "upper_freq", "sample_rate"]
+        # Include "duration" since it's used in __apply__
+        self.required_metadata = [
+            "class_index", "start", "duration", "bandwidth", "center_freq", "sample_rate"]
         self.targets_metadata = ["bbox"]
 
     def __apply__(self, metadata):
-        # Time domain calculations
-        x = metadata["start"]  # Left edge is start time
-
-        # Calculate width (duration in time)
+        # Extract required metadata
+        # X_min is the starting time
+        x_min = metadata["start"]
+        # Width is the duration, normalized
         width = metadata["duration"]
+        # Height is bandwidth normalized by sample rate
+        height = metadata["bandwidth"] / metadata["sample_rate"]
+        # Compute y_center as in YOLO for consistency
+        y_center = 1 - ((metadata["sample_rate"] / 2.0) +
+                        metadata["center_freq"]) / metadata["sample_rate"]
+        # Y_min is the top edge: y_center - height / 2
+        y_min = y_center - height / 2
+        # Create the XYHW label tuple
+        xyhw_label = (x_min, y_min, width, height)
+        # Add to metadata
+        metadata["bbox"] = xyhw_label
 
-        # Frequency domain calculations
-        # Convert frequencies to normalized values [0-1]
-        lower_freq_norm = metadata["lower_freq"] / metadata["sample_rate"]
-        upper_freq_norm = metadata["upper_freq"] / metadata["sample_rate"]
+        return metadata
 
-        # In standard spectrograms, frequency increases UP the y-axis
-        # But in image coordinates, y increases DOWN from top (0) to bottom (1)
-        # So we need to flip the y-coordinates
 
-        # Top edge of bbox is the upper frequency bound, flipped
-        y = 1.0 - upper_freq_norm
+class ConstantSignalName(TargetTransform):
+    """
+    Adds a constant signal name to the metadata.
+    """
 
-        # Height is the difference between upper and lower, in image coordinates
-        height = upper_freq_norm - lower_freq_norm
+    def __init__(self, signal_name: str, **kwargs):
+        super().__init__(**kwargs)
+        self.signal_name = signal_name
+        self.targets_metadata = ["const_signal_name"]
 
-        # Create and store the bounding box
-        metadata["bbox"] = [x, y, width, height]
+    def __apply__(self, metadata):
+        metadata["const_signal_name"] = self.signal_name
+        return metadata
 
+
+class ConstantSignalIndex(TargetTransform):
+    """
+    Adds a constant signal index to the metadata.
+    """
+
+    def __init__(self, index: int = 0, **kwargs):
+        super().__init__(**kwargs)
+        self.targets_metadata = ["const_signal_index"]
+        self.index = index
+
+    def __apply__(self, metadata):
+        metadata["const_signal_index"] = self.index
+        return metadata
+
+
+class ConstantFamilyName(TargetTransform):
+    """
+    Adds a constant family name to the metadata.
+    """
+
+    def __init__(self, family_name: str, **kwargs):
+        super().__init__(**kwargs)
+        self.family_name = family_name
+        self.targets_metadata = ["const_family_name"]
+
+    def __apply__(self, metadata):
+        metadata["const_family_name"] = self.family_name
         return metadata
