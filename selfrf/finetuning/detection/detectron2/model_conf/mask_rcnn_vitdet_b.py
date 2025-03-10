@@ -36,6 +36,7 @@ def build_vitdet_b_training_config(config: Detectron2Config):
     train.amp.enabled = torch.cuda.is_available()
     train.ddp.fp16_compression = True
     train.max_iter = config.max_iter
+    train.eval_period = 1000
     return train
 
 
@@ -46,19 +47,37 @@ def build_vitdet_b_lr_multiplier_config(config: Detectron2Config):
     - Warmup for first 1000 iterations
     - Drop LR at 80% and 90% of training
     """
+   # Determine if we're in testing mode (very small max_iter)
+    testing_mode = config.max_iter < 100
+
     # Calculate milestones based on percentages
     milestones = [
         int(0.8 * config.max_iter),  # Drop LR at 80% of training
         int(0.9 * config.max_iter),  # Drop LR at 90% of training
     ]
 
+    # Adjust warmup length appropriately for testing
+    if testing_mode:
+        # For testing, use just 20% of iterations for warmup
+        warmup_length = 0.2
+        warmup_iters = int(config.max_iter * 0.2)
+    else:
+        # For production, use the standard 1000 iterations
+        # Cap at 90% to be safe
+        warmup_length = min(1000 / config.max_iter, 0.9)
+        warmup_iters = 1000
+
+    print(f"LR Schedule: max_iter={config.max_iter}, milestones={milestones}, "
+          f"warmup_length={warmup_length}, warmup_iters={warmup_iters}")
+
     return L(WarmupParamScheduler)(
         scheduler=L(MultiStepParamScheduler)(
             values=[1.0, 0.1, 0.01],
-            milestones=milestones,
+            # Normalize to [0,1]
+            milestones=[m/config.max_iter for m in milestones],
             num_updates=config.max_iter,
         ),
-        warmup_length=1000 / config.max_iter,  # Fixed 1000 iteration warmup
+        warmup_length=warmup_length,  # Now properly scaled
         warmup_factor=0.001,
     )
 

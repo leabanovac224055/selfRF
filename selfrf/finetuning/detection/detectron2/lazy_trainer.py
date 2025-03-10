@@ -5,6 +5,9 @@ import logging
 
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import instantiate
+from detectron2.evaluation import COCOEvaluator
+from detectron2.data import build_detection_test_loader
+from detectron2.evaluation import inference_on_dataset, print_csv_format
 from detectron2.engine import (
     AMPTrainer,
     SimpleTrainer,
@@ -20,6 +23,37 @@ from selfrf.finetuning.detection.detectron2.config import Detectron2Config
 from selfrf.finetuning.detection.detectron2.model_conf.builds import get_build_functions
 
 from .mapper import mapper
+
+
+def do_test(config, model):
+    """
+    Run evaluation on the validation dataset
+    """
+    # Create evaluator for your validation dataset
+    evaluator = COCOEvaluator(
+        dataset_name="torchsig_wideband_val",
+        output_dir=config.output_dir,
+        tasks=("bbox",),  # Only evaluate bounding boxes
+        use_fast_impl=True
+    )
+
+    # Build test loader using same mapper as training
+    val_loader = build_detection_test_loader(
+        dataset=get_detection_dataset_dicts(
+            names="torchsig_wideband_val",
+            filter_empty=False,
+        ),
+        mapper=mapper,
+        num_workers=2
+    )
+
+    # Run evaluation
+    results = inference_on_dataset(model, val_loader, evaluator)
+
+    # Print results
+    print_csv_format(results)
+    # Return results for logging
+    return results
 
 
 def do_train_lazy(config: Detectron2Config):
@@ -70,7 +104,8 @@ def do_train_lazy(config: Detectron2Config):
                 hooks.PeriodicCheckpointer(
                     checkpointer, **train_config.checkpointer)
             ),
-            # hooks.EvalHook(cfg.train.eval_period, lambda: do_test(cfg, model)),
+            hooks.EvalHook(train_config.eval_period,
+                           lambda: do_test(train_config, model)),
             (
                 hooks.PeriodicWriter(
                     default_writers(train_config.output_dir,
@@ -82,5 +117,11 @@ def do_train_lazy(config: Detectron2Config):
         ]
     )
 
+    # run the training
     checkpointer.resume_or_load(path="", resume=False)
     trainer.train(0, train_config.max_iter)
+
+    # final evaluation
+    final_results = do_test(train_config, model)
+    logger.info("Final evaluation results:")
+    print_csv_format(final_results)
