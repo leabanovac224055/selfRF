@@ -167,6 +167,7 @@ class BackboneType(Enum):
 
 class SSLModelType(Enum):
     BYOL = "byol"
+    DINO = "dino"
 
 
 class DatasetType(Enum):

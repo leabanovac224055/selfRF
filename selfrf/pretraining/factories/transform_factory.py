@@ -4,11 +4,11 @@ from torchsig.transforms.dataset_transforms import ComplexTo2D, Spectrogram, Tra
 from torchsig.transforms.base_transforms import Compose
 from torchsig.transforms.target_transforms import ClassIndex, FamilyIndex
 
-
 from selfrf.transforms import (
     ToSpectrogramTensor,
     ToTensor,
     BYOLTransform,
+    DINOTransform,
     SpectrogramNormalize,
 )
 from selfrf.pretraining.config import BaseConfig, TrainingConfig, EvaluationConfig
@@ -43,7 +43,8 @@ class TransformFactory:
     }
 
     _ssl_transform_registry: Dict[SSLModelType, Callable] = {
-        SSLModelType.BYOL: BYOLTransform
+        SSLModelType.BYOL: BYOLTransform,
+        SSLModelType.DINO: DINOTransform
     }
 
     @classmethod

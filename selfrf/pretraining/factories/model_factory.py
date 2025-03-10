@@ -6,7 +6,8 @@ from selfrf.pretraining.config import TrainingConfig, BaseConfig
 from selfrf.pretraining.utils.utils import get_class_list
 from selfrf.models.iq_models import build_resnet1d
 from selfrf.models.spectrogram_models import build_resnet2d, build_vit
-from selfrf.models.ssl_models import BYOL
+from selfrf.models.ssl_models import BYOL, DINO
+
 from selfrf.pretraining.utils.enums import BackboneArchitecture, SSLModelType
 
 # Import the XCiT class from the xcit1d script
@@ -39,6 +40,7 @@ class ModelFactory:
 
     _ssl_registry: Dict[SSLModelType, Type] = {
         SSLModelType.BYOL: BYOL,
+        SSLModelType.DINO: DINO
     }
 
     @classmethod

@@ -1,4 +1,5 @@
 import os
+import torch
 from dotenv import load_dotenv
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -9,7 +10,6 @@ from selfrf.pretraining.utils.callbacks import ModelAndBackboneCheckpoint
 
 
 def train(config: TrainingConfig):
-
     datamodule = build_dataloader(config)
     datamodule.prepare_data()
     datamodule.setup()
@@ -45,7 +45,8 @@ def train(config: TrainingConfig):
     trainer = Trainer(
         max_epochs=config.num_epochs,
         devices=1,
-        accelerator=config.device.type,
+        # accelerator=config.device.type,
+        accelerator="gpu",  # Force GPU usage
         # callbacks=[checkpoint_callback],
         logger=logger,
     )
