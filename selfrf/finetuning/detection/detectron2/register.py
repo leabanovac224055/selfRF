@@ -5,9 +5,7 @@ from pathlib import Path
 from detectron2.data.datasets import register_coco_instances
 
 
-import numpy as np
 from torchsig.datasets.datamodules import WidebandDataModule
-from torchsig.datasets.wideband import StaticWideband
 from torchsig.datasets.default_configs.loader import get_default_yaml_config
 from torchsig.datasets.dataset_utils import to_dataset_metadata
 from torchsig.transforms.dataset_transforms import Spectrogram
@@ -30,7 +28,6 @@ from selfrf.transforms.extra.target_transforms import BBOXLabel, ConstantFamilyN
 from .create_coco import convert_datamodule_to_coco
 
 FFT_SIZE = 512
-NUM_SAMPLES = 100
 
 
 def register_dataset(
@@ -65,7 +62,7 @@ def register_dataset(
     datamodule = WidebandDataModule(
         root=root / dataset_path,
         dataset_metadata=metadata,
-        num_samples_train=NUM_SAMPLES,
+        num_samples_train=config.num_samples,
         transforms=[
             Compose([
                 Spectrogram(
