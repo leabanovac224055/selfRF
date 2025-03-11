@@ -45,57 +45,104 @@ class ViewInvarianceVisualizer():
     def __next__(self) -> Figure:
         batch = next(self.data_iter)
 
+        # Debugging: Print batch structure
+        print(
+            f"Batch received in Visualizer: {type(batch)}, Length: {len(batch)}")
+
+        # Check if batch is a tuple and its elements
+        if isinstance(batch, tuple):
+            print(f"Batch contains {len(batch)} elements.")
+
+            # Check the views structure
+            print(f"Type of batch[0]: {type(batch[0])}")
+            if isinstance(batch[0], list):
+                print(f"Number of views: {len(batch[0])}")  # Should be 2
+                # Should match expected dimensions
+                print(f"View shapes: {[v.shape for v in batch[0]]}")
+
+            # Check the labels/targets
+            print(
+                f"Type of batch[1]: {type(batch[1])}, Shape: {batch[1].shape if isinstance(batch[1], torch.Tensor) else 'Not a Tensor'}")
+
+        else:
+            print("Unexpected batch structure!")
+
         return self._visualize(batch)
 
-    def _visualize(self, batch: Tuple[List[torch.Tensor], torch.Tensor, List[str]]) -> Figure:
-        """Create side-by-side visualization of view pairs."""
+    def _visualize(self, batch: Tuple[List[torch.Tensor], torch.Tensor]) -> Figure:
+        """Create side-by-side visualization of all available views dynamically."""
 
-        batch_size = len(batch)
-        views = batch[0]
-        views1, views2 = views[0], views[1]
+        batch_size = len(batch[0])  # Number of samples
+        views = batch[0]  # Extract all views
+        num_views = len(views)  # Determine how many views are present
 
-        # Create figure with subplots for each sample
-        nrows = batch_size
-        fig, axes = plt.subplots(nrows, 2, figsize=(
-            10, 5*batch_size), frameon=True)
+        print(f"Number of views in batch: {num_views}")
 
-        # Apply visualization transform in batches
-        if self.visualize_transform:
-            views1 = self.visualize_transform(views1)
-            views2 = self.visualize_transform(views2)
+        # Ensure at least 2 views exist for meaningful visualization
+        if num_views < 2:
+            raise ValueError(f"Expected at least 2 views, but got {num_views}")
+
+        # Create figure with dynamic columns based on available views
+        fig, axes = plt.subplots(nrows=batch_size, ncols=num_views, figsize=(
+            10, 5 * batch_size), frameon=True)
+
+        # If only one sample in batch, axes will not be an array → convert to list
+        if batch_size == 1:
+            axes = [axes]
 
         # Loop through batch
         for i in range(batch_size):
-            # Get views for current sample
+            for j in range(num_views):
+                view = views[j][i]  # Get the corresponding view for the sample
 
-            view1 = views1[i]
-            view2 = views2[i]
+                # Convert to numpy if needed
+                if isinstance(view, torch.Tensor):
+                    view = view.numpy()
 
-            # Ensure views are in correct format
-            if isinstance(view1, torch.Tensor):
-                view1 = view1.numpy()
-            if isinstance(view2, torch.Tensor):
-                view2 = view2.numpy()
+                # Ensure view is 2D
+                if view.ndim == 3:
+                    view = view.squeeze(0)
 
-            # ensure views are 2D
-            if view1.ndim == 3:
-                view1 = view1.squeeze(0)
-            if view2.ndim == 3:
-                view2 = view2.squeeze(0)
+                # Plot view
+                axes[i][j].imshow(view, aspect="auto", cmap="jet")
+                axes[i][j].set_xticks([])
+                axes[i][j].set_yticks([])
 
-            # Plot views
-            axes[i, 0].imshow(view1, aspect='auto', cmap='jet')
-            axes[i, 1].imshow(view2, aspect='auto', cmap='jet')
-
-            # Remove ticks
-            axes[i, 0].set_xticks([])
-            axes[i, 0].set_yticks([])
-            axes[i, 1].set_xticks([])
-            axes[i, 1].set_yticks([])
-
-        # Add column titles
-        axes[0, 0].set_title('View 1')
-        axes[0, 1].set_title('View 2')
+        # Add dynamic column titles based on the number of views
+        for j in range(num_views):
+            axes[0][j].set_title(f"View {j + 1}")
 
         plt.tight_layout()
         return fig
+
+
+def visualize(num_batches: int, dataloader: torch.utils.data.DataLoader):
+    # Add debug prints
+    print("Starting visualization...")
+
+    # Get first batch to inspect structure
+    try:
+        sample_batch = next(iter(dataloader))
+        print(f"Batch type: {type(sample_batch)}")
+        if isinstance(sample_batch, tuple):
+            print(f"Batch elements: {len(sample_batch)}")
+            print(f"First element shape: {sample_batch[0].shape}")
+            print(f"Second element shape: {sample_batch[1].shape}")
+    except Exception as e:
+        print(f"Error inspecting batch: {str(e)}")
+        raise
+
+    visualizer = ViewInvarianceVisualizer(
+        data_loader=dataloader,
+    )
+
+    # Add batch counter
+    batch_count = 0
+    for figure in iter(visualizer):
+        print(f"Processing batch {batch_count + 1}/{num_batches}")
+        figure.set_size_inches(16, 9)
+        plt.show()
+
+        batch_count += 1
+        if batch_count >= num_batches:
+            break
