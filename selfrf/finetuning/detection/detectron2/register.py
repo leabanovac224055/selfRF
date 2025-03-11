@@ -1,4 +1,5 @@
 
+import json
 from pathlib import Path
 
 from detectron2.data.datasets import register_coco_instances
@@ -51,6 +52,14 @@ def register_dataset(
     metadata["overrides"]["num_iq_samples_dataset"] = FFT_SIZE**2
     metadata["overrides"]["fft_size"] = FFT_SIZE
 
+    # Set valid duration bounds based on constraints
+    max_duration = 0.00262144  # max allowed for FFT_SIZE=512
+    min_duration = 0.00131072  # min required based on error message
+
+    metadata["overrides"]["signal_duration_max"] = max_duration
+    metadata["overrides"]["signal_duration_min"] = min_duration
+
+    print(json.dumps(metadata, indent=4))
     metadata = to_dataset_metadata(metadata)
 
     datamodule = WidebandDataModule(
