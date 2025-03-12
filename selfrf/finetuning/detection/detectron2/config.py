@@ -248,8 +248,8 @@ def build_detectron2_config(config: Detectron2Config = Detectron2Config()) -> Cf
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = config.num_classes
     cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     cfg.INPUT.FORMAT = "L"
-    cfg.MODEL.PIXEL_MEAN = [128.0]  # Mean is 128 for grayscale images
-    cfg.MODEL.PIXEL_STD = [128.0]   # Standard deviation is also roughly 128
+    cfg.MODEL.PIXEL_MEAN = [0.0]  # Mean is 128 for grayscale images
+    cfg.MODEL.PIXEL_STD = [255.0]   # Standard deviation is also roughly 128
 
     # Training parameters
     cfg.SOLVER.IMS_PER_BATCH = config.ims_per_batch

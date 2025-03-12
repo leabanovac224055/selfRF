@@ -1,10 +1,10 @@
 
 from typing import Sequence
 from copy import deepcopy
-import cv2
 import numpy as np
 import torch
 
+import torchaudio
 from torchsig.signals.signal_types import Signal, DatasetSignal
 from torchsig.transforms.base_transforms import Transform, Compose
 from torchsig.transforms.dataset_transforms import DatasetTransform
@@ -25,6 +25,7 @@ __all__ = [
     "AmplitudeScale",
     "ToDtype",
     "SpectrogramImage",
+    "SpectrogramImageHighQuality",
     "ToTensor",
     "ToSpectrogramTensor",
 ]
@@ -235,5 +236,79 @@ class ToSpectrogramTensor(DatasetTransform):
         tensor = tensor.unsqueeze(0)
 
         signal.data = tensor
+        self.update(signal)
+        return signal
+
+
+class SpectrogramImageHighQuality(DatasetTransform):
+    """High-quality RF spectrogram transformation following research paper implementation.
+
+    This transforms complex IQ data into a normalized spectrogram image optimized for
+    self-supervised learning, using the same approach as the paper but for grayscale output.
+    """
+
+    def __init__(
+        self,
+        nfft: int = 512,
+        db_scale: bool = True,
+        normalize: bool = True,
+        invert: bool = True,
+        **kwargs
+    ) -> None:
+        super().__init__(**kwargs)
+        self.nfft = nfft
+        self.db_scale = db_scale
+        self.normalize = normalize
+        self.invert = invert
+
+        # Create spectrogram transform once at init time
+        self.spectrogram = torchaudio.transforms.Spectrogram(
+            n_fft=self.nfft,
+            win_length=self.nfft,
+            hop_length=self.nfft,
+            window_fn=torch.blackman_window,
+            normalized=False,
+            center=False,
+            onesided=False,
+            power=2,
+        )
+
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        """Convert complex IQ data to grayscale spectrogram image."""
+        # Convert to torch tensor if numpy array
+        data = torch.from_numpy(signal.data)
+
+        # Apply spectrogram transform
+        x = self.spectrogram(data)
+
+        # Normalize by infinity norm as in paper
+        if self.normalize:
+            norm_val = torch.linalg.norm(x.flatten(), ord=float("inf"))
+            x = x / (norm_val + 1e-12)
+
+        # Apply FFT shift and flip for proper orientation
+        x = torch.fft.fftshift(x, dim=0)
+        x = torch.flip(x, dims=[0])  # same as flipud in the paper
+
+        # Convert to dB scale
+        if self.db_scale:
+            x = 10 * torch.log10(x + 1e-12)
+
+        # Linear scaling to [0,1] range using min-max values
+        x_min = torch.min(x)
+        x_max = torch.max(x)
+
+        # Linear transform to map to [0,1] using the same method as the paper
+        slope = 1.0 / (x_max - x_min + 1e-12)
+        intercept = -x_min * slope
+        x = x * slope + intercept
+
+        # Invert colors if requested (common in RF visualization)
+        if self.invert:
+            x = 1.0 - x
+
+        # Convert back to numpy array for compatibility with other transforms
+        signal.data = x
+
         self.update(signal)
         return signal

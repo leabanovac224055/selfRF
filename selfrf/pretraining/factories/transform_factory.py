@@ -7,6 +7,7 @@ from torchsig.transforms.target_transforms import ClassIndex, FamilyIndex
 from selfrf.transforms import (
     ToSpectrogramTensor,
     ToTensor,
+    SpectrogramImageHighQuality,
     BYOLTransform,
     DINOTransform,
 )
@@ -20,7 +21,7 @@ class TransformFactory:
     @staticmethod
     def create_spectrogram_transform(config: BaseConfig) -> Transform:
         return Compose([
-            Spectrogram(
+            SpectrogramImageHighQuality(
                 fft_size=config.nfft,
             ),
             ToSpectrogramTensor(

@@ -21,9 +21,10 @@ from torchsig.transforms.target_transforms import (
 
 from selfrf.finetuning.detection.detectron2.config import Detectron2Config
 from selfrf.transforms import (
-    SpectrogramImage,
+    SpectrogramImageHighQuality,
 )
 from selfrf.transforms.extra.target_transforms import BBOXLabel, ConstantFamilyName, ConstantSignalIndex, ConstantSignalName
+from selfrf.transforms.extra.transforms import SpectrogramImageHighQuality
 
 from .create_coco import convert_datamodule_to_coco
 
@@ -43,8 +44,8 @@ def register_dataset(
         train=True,
     )
     metadata["overrides"]["snr_db_min"] = 10
-    metadata["overrides"]["signal_bandwidth_min"] = 1_000_000
-    metadata["overrides"]["signal_bandwidth_max"] = 1_000_0000
+    metadata["overrides"]["signal_bandwidth_min"] = 3_000_000
+    metadata["overrides"]["signal_bandwidth_max"] = 13_000_000
     metadata["overrides"]["impairment_level"] = 2
     metadata["overrides"]["num_iq_samples_dataset"] = FFT_SIZE**2
     metadata["overrides"]["fft_size"] = FFT_SIZE
@@ -65,10 +66,10 @@ def register_dataset(
         num_samples_train=config.num_samples,
         transforms=[
             Compose([
-                Spectrogram(
-                    fft_size=FFT_SIZE,
+                SpectrogramImageHighQuality(
+                    nfft=FFT_SIZE,
                 ),
-                SpectrogramImage()
+
             ]),
         ],
         target_transforms=get_target_transforms(config=config),

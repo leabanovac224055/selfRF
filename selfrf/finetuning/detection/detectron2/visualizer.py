@@ -15,7 +15,7 @@ from selfrf.finetuning.detection.detectron2.mapper import mapper
 
 
 def visualize_dataset(config: Detectron2Config, n_samples=100):
-    register_dataset(config)
+    # register_dataset(config)
 
     metadata = MetadataCatalog.get("torchsig_wideband_train")
     dataset_dicts = DatasetCatalog.get("torchsig_wideband_train")
@@ -32,6 +32,9 @@ def visualize_dataset(config: Detectron2Config, n_samples=100):
     for d in samples:
         processed_dict = mapper(d)
         img: torch.Tensor = processed_dict["image"]
+        # print min max
+        # print(img.min(), img.max())
+        # print(img.shape)
 
         # Convert (C,H,W) to (H,W,C)
         img = img.permute(1, 2, 0)
