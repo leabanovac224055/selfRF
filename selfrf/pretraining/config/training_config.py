@@ -60,13 +60,13 @@ def parse_training_config() -> TrainingConfig:
 
     # Create TrainingConfig by combining base config and training args
     training_config = TrainingConfig(
-        **vars(base_config),  # Unpack base config
+        **vars(base_config),
 
         # Add training fields
         online_linear_eval=args.online_linear_eval,
         ssl_model=args.ssl_model,
         training_path=args.training_path,
-        num_epochs=args.num_epochs
+        num_epochs=args.num_epochs,
     )
 
     return training_config

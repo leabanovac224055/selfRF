@@ -6,8 +6,9 @@ from selfrf.pretraining.config import TrainingConfig, BaseConfig
 from selfrf.pretraining.utils.utils import get_class_list
 from selfrf.models.iq_models import build_resnet1d
 from selfrf.models.spectrogram_models import build_resnet2d, build_vit
-from selfrf.models.ssl_models import BYOL
+from selfrf.models.ssl_models import BYOL, DINO
 from selfrf.pretraining.utils.enums import BackboneArchitecture, SSLModelType
+from selfrf.models.iq_models.xcit.xcit1d import XCiT1d
 
 
 @dataclass(frozen=True)  # makes the dataclass immutable
@@ -21,10 +22,12 @@ class ModelFactory:
         BackboneConfig(BackboneArchitecture.RESNET, False): lambda **kwargs: build_resnet1d(input_channels=2, ** kwargs),
         BackboneConfig(BackboneArchitecture.RESNET, True): lambda **kwargs: build_resnet2d(input_channels=1, ** kwargs),
         BackboneConfig(BackboneArchitecture.VIT, True): lambda **kwargs: build_vit(input_channels=1, ** kwargs),
+        BackboneConfig(BackboneArchitecture.XCIT, False): lambda **kwargs: XCiT1d(input_channels=2, ** kwargs),
     }
 
     _ssl_registry: Dict[SSLModelType, Type] = {
         SSLModelType.BYOL: BYOL,
+        SSLModelType.DINO: DINO
     }
 
     @classmethod
@@ -57,11 +60,11 @@ class ModelFactory:
                 "\n".join(f"- {c}" for c in available_configs)
             )
 
-        return builder(
-            version=config.backbone.get_size().value,
-            provider=config.backbone_provider,
-            n_features=config.embedding_dim
-        )
+            return builder(
+                version=config.backbone.get_size().value,
+                provider=config.backbone_provider,
+                n_features=config.embedding_dim
+            )
 
     @classmethod
     def create_ssl_model(cls, config: TrainingConfig) -> torch.nn.Module:

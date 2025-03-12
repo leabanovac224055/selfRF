@@ -1,6 +1,4 @@
 from enum import Enum
-
-
 from dataclasses import dataclass
 
 
@@ -8,6 +6,7 @@ class BackboneArchitecture(Enum):
     """Base backbone architecture types."""
     RESNET = "resnet"
     VIT = "vit"
+    XCIT = "xcit"
 
     def __str__(self) -> str:
         return self.name
@@ -26,6 +25,13 @@ class BackboneSize(Enum):
     VIT_BASE = "b"
     VIT_LARGE = "l"
     VIT_HUGE = "h"
+
+    # XCiT variants
+    XCIT_NANO_12 = "xcit_nano_12_p16_224"
+    XCIT_TINY_12 = "xcit_tiny_12_p16_224"
+    XCIT_SMALL_12 = "xcit_small_12_p16_224"
+    XCIT_MEDIUM_24 = "xcit_medium_24_p16_224"
+    XCIT_LARGE_24 = "xcit_large_24_p16_224"
 
     def __str__(self) -> str:
         return self.name
@@ -121,6 +127,18 @@ class BackboneType(Enum):
     VIT_L = BackboneSpec(BackboneArchitecture.VIT, BackboneSize.VIT_LARGE)
     VIT_H = BackboneSpec(BackboneArchitecture.VIT, BackboneSize.VIT_HUGE)
 
+    # XCiT models
+    XCIT_NANO_12 = BackboneSpec(
+        BackboneArchitecture.XCIT, BackboneSize.XCIT_NANO_12)
+    XCIT_TINY_12 = BackboneSpec(
+        BackboneArchitecture.XCIT, BackboneSize.XCIT_TINY_12)
+    XCIT_SMALL_12 = BackboneSpec(
+        BackboneArchitecture.XCIT, BackboneSize.XCIT_SMALL_12)
+    XCIT_MEDIUM_24 = BackboneSpec(
+        BackboneArchitecture.XCIT, BackboneSize.XCIT_MEDIUM_24)
+    XCIT_LARGE_24 = BackboneSpec(
+        BackboneArchitecture.XCIT, BackboneSize.XCIT_LARGE_24)
+
     def get_architecture(self) -> BackboneArchitecture:
         """Get the backbone specification."""
         return self.value.architecture
@@ -149,6 +167,7 @@ class BackboneType(Enum):
 
 class SSLModelType(Enum):
     BYOL = "byol"
+    DINO = "dino"
 
 
 class DatasetType(Enum):
