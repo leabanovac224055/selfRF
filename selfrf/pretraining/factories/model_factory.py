@@ -60,11 +60,11 @@ class ModelFactory:
                 "\n".join(f"- {c}" for c in available_configs)
             )
 
-            return builder(
-                version=config.backbone.get_size().value,
-                provider=config.backbone_provider,
-                n_features=config.embedding_dim
-            )
+        return builder(
+            version=config.backbone.get_size().value,
+            provider=config.backbone_provider,
+            n_features=config.embedding_dim
+        )
 
     @classmethod
     def create_ssl_model(cls, config: TrainingConfig) -> torch.nn.Module:

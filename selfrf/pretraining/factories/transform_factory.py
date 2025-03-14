@@ -1,18 +1,18 @@
 from typing import Dict, Callable, Union
 
-from torchsig.transforms.dataset_transforms import ComplexTo2D, Spectrogram, Transform
+from torchsig.transforms.dataset_transforms import ComplexTo2D, Transform
 from torchsig.transforms.base_transforms import Compose
 from torchsig.transforms.target_transforms import ClassIndex, FamilyIndex
 
 from selfrf.transforms import (
     ToSpectrogramTensor,
+    Identity,
     ToTensor,
     SpectrogramImageHighQuality,
     BYOLTransform,
     DINOTransform,
 )
 from selfrf.pretraining.config import BaseConfig, TrainingConfig, EvaluationConfig
-from selfrf.transforms.extra.target_transforms import BBOXLabel
 from selfrf.pretraining.utils.utils import get_class_list
 from selfrf.pretraining.utils.enums import TransformType, SSLModelType, DatasetType
 
@@ -22,10 +22,7 @@ class TransformFactory:
     def create_spectrogram_transform(config: BaseConfig) -> Transform:
         return Compose([
             SpectrogramImageHighQuality(
-                fft_size=config.nfft,
-            ),
-            ToSpectrogramTensor(
-                to_float_32=config.to_float_32,
+                nfft=config.nfft,
             ),
         ])
 
@@ -43,7 +40,7 @@ class TransformFactory:
 
     _ssl_transform_registry: Dict[SSLModelType, Callable] = {
         SSLModelType.BYOL: BYOLTransform,
-        SSLModelType.DINO: DINOTransform
+        SSLModelType.DINO: DINOTransform,
     }
 
     @classmethod
@@ -74,7 +71,7 @@ class TransformFactory:
             return ClassIndex()
 
         if config.dataset == DatasetType.TORCHSIG_WIDEBAND:
-            return BBOXLabel()
+            return [Identity()]
 
 
 def build_transform(config: Union[TrainingConfig, EvaluationConfig]) -> Transform:

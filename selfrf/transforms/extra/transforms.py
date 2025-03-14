@@ -275,7 +275,7 @@ class SpectrogramImageHighQuality(DatasetTransform):
 
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         """Convert complex IQ data to grayscale spectrogram image."""
-        # Convert to torch tensor if numpy array
+        # Convert to torch tensor
         data = torch.from_numpy(signal.data)
 
         # Apply spectrogram transform

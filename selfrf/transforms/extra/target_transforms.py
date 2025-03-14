@@ -2,14 +2,13 @@ from typing import Any
 from torchsig.transforms.target_transforms import TargetTransform
 
 
-class ConstantTargetTransform(TargetTransform):
+class Identity(TargetTransform):
 
-    def __init__(self, constant: Any) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.constant = constant
 
-    def __call__(self, metadata: Any) -> Any:
-        return self.constant
+    def __call__(self, metadata):
+        return metadata
 
 
 class BBOXLabel(TargetTransform):
