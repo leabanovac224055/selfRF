@@ -105,7 +105,7 @@ DEFAULT_PATH = "wideband_impaired"
 DEFAULT_WEIGHTS_PATH = ""
 DEFAULT_NUM_CLASSES = 10
 DEFAULT_MAX_ITER = 90_000
-DEFAULT_BASE_LR = 0.01
+DEFAULT_BASE_LR = 0.0025
 DEFAULT_IMS_PER_BATCH = 8
 DEFAULT_CHECKPOINT_PERIOD = 1000
 
@@ -237,14 +237,10 @@ def build_detectron2_config(config: Detectron2Config = Detectron2Config()) -> Cf
         "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"))
     cfg.DATASETS.TRAIN = ("torchsig_wideband_train",)
     cfg.DATASETS.TEST = ("torchsig_wideband_val",)
-    # Disable all augmentations
-    cfg.INPUT.MIN_SIZE_TRAIN = (512,)  # Only one size, no range
-    cfg.INPUT.MAX_SIZE_TRAIN = 512
-    cfg.INPUT.MIN_SIZE_TEST = 512
-    cfg.INPUT.MAX_SIZE_TEST = 512
 
     # Model parameters
-    cfg.MODEL.WEIGHTS = config.weights_path
+    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(
+        "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = config.num_classes
     cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     cfg.INPUT.FORMAT = "L"
