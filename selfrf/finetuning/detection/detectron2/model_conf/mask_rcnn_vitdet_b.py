@@ -24,7 +24,7 @@ def build_vitdet_b_model_config():
     model.roi_heads.mask_head = None
 
     model.pixel_mean = [0.0]  # Single channel mean
-    model.pixel_std = [255.0]   # Single channel std
+    model.pixel_std = [1]   # Single channel std
     model.input_format = "L"  # Grayscale format
 
     return model

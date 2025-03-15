@@ -19,7 +19,10 @@ def mapper(dataset_dict):
 
     # transform the image to tensor (c, h, w)
     image = np.ascontiguousarray(image.transpose(2, 0, 1))
-    dataset_dict["image"] = torch.as_tensor(image)
+
+    # normalize the image to [0, 1]
+    normalized_image = torch.as_tensor(image) / 255.0
+    dataset_dict["image"] = normalized_image
 
     # annotations to detectron2 instances
     dataset_dict["instances"] = detection_utils.annotations_to_instances(

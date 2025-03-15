@@ -65,7 +65,7 @@ def do_train(config: Detectron2Config):
     trainer = Trainer(cfg)
 
     # Load checkpoint if available
-    trainer.resume_or_load(resume=False)
+    trainer.resume_or_load(resume=True)
 
     # Run training
     trainer.train()

@@ -4,6 +4,7 @@ import os
 from detectron2.utils.logger import setup_logger
 
 from selfrf.finetuning.detection.detectron2.config import Detectron2Config, add_detectron2_config_args, print_config
+from selfrf.finetuning.detection.detectron2.inference import inference_dataset
 from selfrf.finetuning.detection.detectron2.register import register_dataset
 from selfrf.finetuning.detection.detectron2.lazy_trainer import do_train_lazy
 from selfrf.finetuning.detection.detectron2.trainer import do_train
@@ -14,6 +15,7 @@ setup_logger()
 
 VISUALIZE = False
 VISUALIZE_N_SAMPLES = 100
+INFERENCE = False
 
 
 def train(config: Detectron2Config):
@@ -26,6 +28,10 @@ def train(config: Detectron2Config):
 
     if VISUALIZE:
         visualize_dataset(config, VISUALIZE_N_SAMPLES)
+
+    if INFERENCE:
+        inference_dataset(config, 0.3, VISUALIZE_N_SAMPLES)
+        return
 
     if config.model_type.is_lazy_config:
         do_train_lazy(config)

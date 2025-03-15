@@ -40,13 +40,13 @@ def register_dataset(
 
     metadata = get_default_yaml_config(
         dataset_type="wideband",
-        impairment_level=2,
+        impairment_level=0,
         train=True,
     )
-    metadata["overrides"]["snr_db_min"] = 10
-    metadata["overrides"]["signal_bandwidth_min"] = 3_000_000
+    metadata["overrides"]["snr_db_min"] = 20
+    metadata["overrides"]["signal_bandwidth_min"] = 5_000_000
     metadata["overrides"]["signal_bandwidth_max"] = 13_000_000
-    metadata["overrides"]["impairment_level"] = 2
+    metadata["overrides"]["impairment_level"] = 0
     metadata["overrides"]["num_iq_samples_dataset"] = FFT_SIZE**2
     metadata["overrides"]["fft_size"] = FFT_SIZE
 
