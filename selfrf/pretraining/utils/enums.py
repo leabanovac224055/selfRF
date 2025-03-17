@@ -174,6 +174,10 @@ class DatasetType(Enum):
     TORCHSIG_NARROWBAND = "narrowband"
     TORCHSIG_WIDEBAND = "wideband"
 
+    # Add IQDM Datasets
+    IQDM_NARROWBAND = "IQDM_NARROWBAND"
+    IQDM_WIDEBAND = "IQDM_WIDEBAND"
+
 
 class TransformType(Enum):
     SPECTROGRAM = "spectrogram"

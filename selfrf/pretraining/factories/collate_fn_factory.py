@@ -1,39 +1,29 @@
 from typing import Union
-
 import torch
-
 from selfrf.pretraining.config.evaluation_config import EvaluationConfig
 from selfrf.pretraining.config.training_config import TrainingConfig
 
 
 def collate_fn(batch):
     views, targets = zip(*batch)
+    view1s, view2s = zip(*views)
 
-    # Compute the number of views for each sample
-    view_counts = [len(v) for v in views]
-    print(f"Views per sample before stacking: {view_counts}")
+    print(f"🔍 Batch Targets Before Processing: {targets}")  # Debugging line
 
-    # Dynamically determine the minimum number of views available in the batch
-    num_views = min(view_counts)
+    extracted_targets = []
+    for t in targets:
+        if isinstance(t, dict):
+            # ✅ Extract integer value
+            extracted_targets.append(t.get("class_index", 0))
+        else:
+            extracted_targets.append(t)  # Already a number
 
-    print(f"Batch will be processed with {num_views} views per sample.")
+    print(f"✅ Processed Targets: {extracted_targets}")  # Debugging line
 
-    # Stack only the available views
-    stacked_views = [torch.stack([v[i] for v in views if len(v) > i])
-                     for i in range(num_views)]
-
-    print(f"Final stacked views count: {len(stacked_views)}")
-    print(f"Stacked view shapes: {[v.shape for v in stacked_views]}")
-
-    # **Instead of padding, pick only the first target from each sample**
-    selected_targets = [t[0] if isinstance(t, list) and len(t) > 0 else [
-        0, 0, 0, 0] for t in targets]
-
-    targets_tensor = torch.tensor(selected_targets, dtype=torch.float32)
-
-    print(f"Final Targets Shape: {targets_tensor.shape}")
-
-    return stacked_views, targets_tensor
+    return (
+        torch.stack(view1s),
+        torch.stack(view2s)
+    ), torch.tensor(extracted_targets, dtype=torch.long)
 
 
 def collate_fn_evaluation(batch):

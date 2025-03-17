@@ -32,6 +32,8 @@ DEFAULT_DS_RATE = 2
 DATASET_IQ_SAMPLES = {
     DatasetType.TORCHSIG_WIDEBAND: 262144,
     DatasetType.TORCHSIG_NARROWBAND: 4096,
+    DatasetType.IQDM_WIDEBAND: 262144,
+    DatasetType.IQDM_NARROWBAND: 4096,
 }
 
 
@@ -43,6 +45,7 @@ class BaseConfig:
     download: bool = False
     family: bool = DEFAULT_FAMILY
     impairment_level: int = 2
+    use_static: bool = False  # New option to load static IQDM datasets
 
     # Add private storage field
     _custom_iq_samples: Optional[int] = None
@@ -121,6 +124,12 @@ def add_base_config_args(parser: argparse.ArgumentParser) -> None:
               f'Wideband={DATASET_IQ_SAMPLES[DatasetType.TORCHSIG_WIDEBAND]}, '
               f'Narrowband={DATASET_IQ_SAMPLES[DatasetType.TORCHSIG_NARROWBAND]}. '
               f'Set this to override the default for your dataset.')
+    )
+    parser.add_argument(
+        '--use-static',  # New flag to use static IQDM datasets
+        type=lambda x: x.lower() == 'true',
+        default=False,
+        help="Set to true to load static IQDM datasets (default: False)"
     )
     parser.add_argument(
         '--spectrogram',

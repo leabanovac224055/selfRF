@@ -10,7 +10,8 @@ from selfrf.pretraining.utils.callbacks import ModelAndBackboneCheckpoint
 
 
 def train(config: TrainingConfig):
-    datamodule = build_dataloader(config)
+    # Use Static Dataset if Specified
+    datamodule = build_dataloader(config, use_static=config.use_static)
     datamodule.prepare_data()
     datamodule.setup()
 
