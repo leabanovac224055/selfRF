@@ -67,12 +67,21 @@ def normalize_annotation_to_frame(annotation: dict, sample_start: int, sample_co
             f"⚠️ Skipping annotation {annotation[SigMFFile.LABEL_KEY]}, outside frame")
         return None
 
+    # ✅ Calculate true center frequency for basebanding
+    center_freq = (annotation[SigMFFile.FLO_KEY] +
+                   annotation[SigMFFile.FHI_KEY]) / 2
+
+    # ✅ Create a normalized copy
     copy = deepcopy(annotation)
     copy[SigMFFile.START_INDEX_KEY] = annotation_start - sample_start
     copy[SigMFFile.LENGTH_INDEX_KEY] = annotation_end - annotation_start
+    copy[SigMFFile.FLO_KEY] = annotation[SigMFFile.FLO_KEY] - center_freq
+    copy[SigMFFile.FHI_KEY] = annotation[SigMFFile.FHI_KEY] - center_freq
 
-    copy[SigMFFile.FLO_KEY] = annotation[SigMFFile.FLO_KEY] - sample_rate / 2
-    copy[SigMFFile.FHI_KEY] = annotation[SigMFFile.FHI_KEY] - sample_rate / 2
+    # ✅ Log for verification
+    print(f"✅ Normalized Annotation:\n"
+          f"  start={copy[SigMFFile.START_INDEX_KEY]} length={copy[SigMFFile.LENGTH_INDEX_KEY]}\n"
+          f"  flo={copy[SigMFFile.FLO_KEY]}  fhi={copy[SigMFFile.FHI_KEY]} (center={center_freq})")
 
     return copy
 
@@ -166,18 +175,16 @@ def preprocess_sigmf_files(filepaths, output_dir, frame_size=4096, isolate=True)
                 continue
 
             # Adjust start position and length to fit the frame
-            annotation_copy = deepcopy(annotation)
-
-            if annotation_copy[SigMFFile.LENGTH_INDEX_KEY] > frame_size:
-                annotation_copy[SigMFFile.LENGTH_INDEX_KEY] = frame_size
-                global_sample_start = annotation_copy[SigMFFile.START_INDEX_KEY]
+            if annotation[SigMFFile.LENGTH_INDEX_KEY] > frame_size:
+                annotation[SigMFFile.LENGTH_INDEX_KEY] = frame_size
+                global_sample_start = annotation[SigMFFile.START_INDEX_KEY]
             else:
-                global_sample_start = annotation_copy[SigMFFile.START_INDEX_KEY] - (
-                    frame_size - annotation_copy[SigMFFile.LENGTH_INDEX_KEY]) // 2
+                global_sample_start = annotation[SigMFFile.START_INDEX_KEY] - (
+                    frame_size - annotation[SigMFFile.LENGTH_INDEX_KEY]) // 2
 
             # ✅ Normalize annotation (baseband shift)
             normalized_annotation = normalize_annotation_to_frame(
-                annotation_copy, global_sample_start, global_sample_count, sample_rate
+                annotation, global_sample_start, global_sample_count, sample_rate
             )
 
             if normalized_annotation is None:
@@ -241,6 +248,15 @@ def preprocess_sigmf_files(filepaths, output_dir, frame_size=4096, isolate=True)
                 "lower": normalized_annotation[SigMFFile.FLO_KEY],
                 "upper": normalized_annotation[SigMFFile.FHI_KEY],
                 "center": 0.0
+            })
+
+            print(f"📦 Using Normalized Metadata:\n  flo={normalized_annotation[SigMFFile.FLO_KEY]} "
+                  f"fhi={normalized_annotation[SigMFFile.FHI_KEY]}")
+            print("🧪 Confirm Keys in Normalized Annotation:",
+                  normalized_annotation.keys())
+            print("📦 Metadata Being Saved:", {
+                "lower_freq": normalized_annotation.get(SigMFFile.FLO_KEY, '❌ Missing'),
+                "upper_freq": normalized_annotation.get(SigMFFile.FHI_KEY, '❌ Missing')
             })
 
             # ✅ Store metadata in TorchSig-compatible format
