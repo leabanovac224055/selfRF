@@ -110,7 +110,7 @@ def isolate_signal(samples: np.ndarray[np.complex64], sample_rate: float, sample
     return filtered_samples
 
 
-def preprocess_sigmf_files(filepaths, output_dir, frame_size=4096, isolate=True):
+def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, isolate=True):
     """
     Preprocesses a list of SigMF files and saves them to a single TorchSig-compatible Zarr dataset.
 
@@ -138,9 +138,12 @@ def preprocess_sigmf_files(filepaths, output_dir, frame_size=4096, isolate=True)
     all_signals = []
     metadata = []
 
+    # Initialize class mapping
+    class_map = {}
+    class_counter = 0
+
     for filepath in tqdm(filepaths, desc="Processing SigMF datasets"):
         sigmf_file = SigMFFile()
-
         # ✅ Load metadata manually
         with open(filepath, 'r', encoding='utf-8') as f:
             metadata_json = json.load(f)
@@ -259,12 +262,20 @@ def preprocess_sigmf_files(filepaths, output_dir, frame_size=4096, isolate=True)
                 "upper_freq": normalized_annotation.get(SigMFFile.FHI_KEY, '❌ Missing')
             })
 
+            class_name = normalized_annotation.get("core:label", "unknown")
+
+            if class_name not in class_map:
+                class_map[class_name] = class_counter
+                class_counter += 1
+
+            class_index = class_map[class_name]
+
             # ✅ Store metadata in TorchSig-compatible format
             metadata.append({
                 "bandwidth": normalized_annotation[SigMFFile.FHI_KEY] - normalized_annotation[SigMFFile.FLO_KEY],
                 "center_freq": 0.0,  # ✅ Center frequency should be zero in baseband!
-                "class_index": normalized_annotation.get("class_index", -1),
-                "class_name": normalized_annotation.get("core:label", "unknown"),
+                "class_index": class_index,
+                "class_name": class_name,
                 "duration": global_sample_count / sample_rate,
                 "duration_in_samples": global_sample_count,
                 "lower_freq": normalized_annotation[SigMFFile.FLO_KEY],
@@ -296,11 +307,9 @@ def save_to_single_zarr(output_path, all_signals, metadata, frame_size=4096):
         frame_size (int): Frame size (default 4096 for TorchSig compatibility).
     """
 
-    # ✅ Remove existing dataset
-    if os.path.exists(output_path):
-        print(f"🗑️ Deleting existing dataset at {output_path}...")
-        shutil.rmtree(output_path)
-
+    zarr_path = os.path.join(output_path, "data.zarr")
+    if os.path.exists(zarr_path):
+        shutil.rmtree(zarr_path)
     os.makedirs(output_path, exist_ok=True)
 
     if all_signals.size == 0:
@@ -316,7 +325,7 @@ def save_to_single_zarr(output_path, all_signals, metadata, frame_size=4096):
 
     # ✅ Create a single contiguous Zarr array
     zarr_store = zarr.open_array(
-        os.path.join(output_path, "data.zarr"),
+        store=zarr_path,
         mode="w",
         shape=all_signals.shape,
         dtype=np.complex64,
@@ -342,7 +351,7 @@ def save_to_single_zarr(output_path, all_signals, metadata, frame_size=4096):
 input_folder = "/home/sigence/selfRF/datasets/SIGMF"
 output_folder = "/home/sigence/selfRF/datasets/NARROWBAND_ZARR"
 
-preprocess_sigmf_files(
+preprocess_narrowband_sigmf_files(
     filepaths=[os.path.join(input_folder, f) for f in os.listdir(
         input_folder) if f.endswith(".sigmf-meta")],
     output_dir=output_folder,
