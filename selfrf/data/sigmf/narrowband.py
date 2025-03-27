@@ -9,31 +9,20 @@ from sigmf.sigmffile import SigMFFile
 from copy import deepcopy
 
 
-def filter_frequency(samples: np.ndarray[np.complex64], sample_rate: float, f_low: float, f_high: float, center_freq: float) -> np.ndarray[np.complex64]:
+def filter_frequency(samples: np.ndarray[np.complex64], sample_rate: float, f_low: float, f_high: float) -> np.ndarray[np.complex64]:
     """Filters a signal within a given frequency range."""
 
+    # Perform FFT
     fft_samples = np.fft.fft(samples)
-    # Get FFT frequencies in Hz
-    freq = np.fft.fftfreq(len(samples), d=1/sample_rate)
 
-    # Shift frequency range to baseband
-    f_low_baseband = f_low - center_freq
-    f_high_baseband = f_high - center_freq
+    # Generate frequency axis
+    freq = np.fft.fftfreq(len(samples), 1/sample_rate)
 
-    # Debugging print statements
-    print(
-        f"🚀 Filtering: f_low = {f_low}, f_high = {f_high}, Center Freq = {center_freq}")
-    print(
-        f"🚀 Baseband Filtering: f_low = {f_low_baseband}, f_high = {f_high_baseband}, FFT Range = {-sample_rate/2} to {sample_rate/2}")
-
-    # Check if f_low > f_high (invalid case)
-    if f_low_baseband >= f_high_baseband:
-        warnings.warn(
-            f"⚠️ Invalid frequency range: {f_low_baseband} >= {f_high_baseband}. Skipping signal.")
-        return np.zeros_like(samples)  # Skip signal
-
-    # Zero out frequencies outside the desired baseband range
-    fft_samples[(freq < f_low_baseband) | (freq > f_high_baseband)] = 0
+    # Zero out frequencies outside the desired range
+    if f_low < f_high:
+        fft_samples[(freq < f_low) | (freq > f_high)] = 0
+    else:
+        fft_samples[(freq > f_low) | (freq < f_high)] = 0
 
     # Perform inverse FFT
     filtered_samples = np.fft.ifft(fft_samples)
@@ -53,7 +42,7 @@ def filter_time(samples: np.ndarray[np.complex64], sample_start: int, sample_cou
     return output
 
 
-def normalize_annotation_to_frame(annotation: dict, sample_start: int, sample_count: int, sample_rate: float) -> dict:
+def normalize_annotation_to_frame(annotation: dict, sample_start: int, sample_count: int, center_freq: float) -> dict:
     """ Normalize an annotation to fit a frame and shift to baseband. """
     annotation_abs_end = annotation[SigMFFile.START_INDEX_KEY] + \
         annotation[SigMFFile.LENGTH_INDEX_KEY]
@@ -67,21 +56,18 @@ def normalize_annotation_to_frame(annotation: dict, sample_start: int, sample_co
             f"⚠️ Skipping annotation {annotation[SigMFFile.LABEL_KEY]}, outside frame")
         return None
 
-    # ✅ Calculate true center frequency for basebanding
-    center_freq = (annotation[SigMFFile.FLO_KEY] +
-                   annotation[SigMFFile.FHI_KEY]) / 2
-
     # ✅ Create a normalized copy
     copy = deepcopy(annotation)
     copy[SigMFFile.START_INDEX_KEY] = annotation_start - sample_start
     copy[SigMFFile.LENGTH_INDEX_KEY] = annotation_end - annotation_start
+
     copy[SigMFFile.FLO_KEY] = annotation[SigMFFile.FLO_KEY] - center_freq
     copy[SigMFFile.FHI_KEY] = annotation[SigMFFile.FHI_KEY] - center_freq
 
     # ✅ Log for verification
     print(f"✅ Normalized Annotation:\n"
           f"  start={copy[SigMFFile.START_INDEX_KEY]} length={copy[SigMFFile.LENGTH_INDEX_KEY]}\n"
-          f"  flo={copy[SigMFFile.FLO_KEY]}  fhi={copy[SigMFFile.FHI_KEY]} (center={center_freq})")
+          f"  flo={copy[SigMFFile.FLO_KEY]}  fhi={copy[SigMFFile.FHI_KEY]}")
 
     return copy
 
@@ -102,12 +88,34 @@ def isolate_signal(samples: np.ndarray[np.complex64], sample_rate: float, sample
     np.ndarray[np.complex64]: The isolated signal samples as a complex64 numpy array.
     """
 
-    center_freq = (f_low + f_high) / 2
     filtered_samples = filter_frequency(
-        samples, sample_rate, f_low, f_high, center_freq)
+        samples, sample_rate, f_low, f_high)
     filtered_samples = filter_time(
         filtered_samples, sample_start, sample_count)
     return filtered_samples
+
+
+def get_capture_for_annotation(sigmf_file: SigMFFile, annotation: dict) -> dict:
+    """Find the corresponding capture for an annotation."""
+    annotation_start = annotation[SigMFFile.START_INDEX_KEY]
+    captures = sigmf_file.get_captures()
+
+    for capture in captures:
+        capture_start = capture.get(SigMFFile.START_INDEX_KEY, 0)
+        next_capture_start = float('inf')
+
+        # Find next capture start
+        for next_capture in captures:
+            next_start = next_capture.get(SigMFFile.START_INDEX_KEY, 0)
+            if next_start > capture_start and next_start < next_capture_start:
+                next_capture_start = next_start
+
+        # Check if annotation falls within this capture
+        if capture_start <= annotation_start < next_capture_start:
+            return capture
+
+    # If no specific capture found, return first capture or empty dict
+    return captures[0] if captures else {}
 
 
 def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, isolate=True):
@@ -158,6 +166,7 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
 
         for index, annotation in enumerate(tqdm(annotations, desc=f"Processing annotations for {os.path.basename(filepath)}")):
             global_sample_count = frame_size
+            capture = get_capture_for_annotation(sigmf_file, annotation)
 
             # Skip signal if end of file is reached
             if file_length < annotation[SigMFFile.START_INDEX_KEY] + frame_size:
@@ -187,29 +196,24 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
 
             # ✅ Normalize annotation (baseband shift)
             normalized_annotation = normalize_annotation_to_frame(
-                annotation, global_sample_start, global_sample_count, sample_rate
+                annotation, global_sample_start, global_sample_count, capture.get(
+                    "core:frequency", 0.0)
             )
 
             if normalized_annotation is None:
                 print(f"⚠️ Skipping annotation {index}: Out of frame")
                 continue
 
-            print(f"🔍 Debugging Signal {index} in {filepath}:")
-            print(f"   - Start Index: {annotation[SigMFFile.START_INDEX_KEY]}")
-            print(f"   - Length: {annotation[SigMFFile.LENGTH_INDEX_KEY]}")
-            print(
-                f"   - Frequency Range: {annotation[SigMFFile.FLO_KEY]} Hz → {annotation[SigMFFile.FHI_KEY]} Hz")
-            print(f"   - Sample Rate: {sample_rate}")
-
             # ✅ Read and process signal
             global_sample_start = max(0, global_sample_start)
             samples = sigmf_file.read_samples(
                 global_sample_start, global_sample_count)
 
-            # 🔍 Debug print: First few values
-            print(
-                f"📊 Raw Samples Extracted (First 5) for Signal {index}: {samples[:5]}")
-            print(f"📊 Mean: {np.mean(samples)}, Std Dev: {np.std(samples)}")
+            # ✅ Apply isolation if needed
+            if isolate:
+                samples = isolate_signal(
+                    samples, sample_rate, sample_start=normalized_annotation[
+                        SigMFFile.START_INDEX_KEY], sample_count=normalized_annotation[SigMFFile.LENGTH_INDEX_KEY], f_low=normalized_annotation[SigMFFile.FLO_KEY], f_high=normalized_annotation[SigMFFile.FHI_KEY])
 
             # ✅ Check if signal contains only zeros
             if np.allclose(samples, 0, atol=1e-10):
@@ -217,16 +221,6 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
                 warnings.warn(
                     f"⚠️ Skipping signal {index}: Contains only zero values")
                 continue
-
-            # ✅ Apply isolation if needed
-            if isolate:
-                samples = isolate_signal(
-                    samples, sample_rate,
-                    sample_start=normalized_annotation[SigMFFile.START_INDEX_KEY],
-                    sample_count=normalized_annotation[SigMFFile.LENGTH_INDEX_KEY],
-                    f_low=normalized_annotation[SigMFFile.FLO_KEY],
-                    f_high=normalized_annotation[SigMFFile.FHI_KEY]
-                )
 
             # Skip zero signals
             if np.allclose(samples, 0, atol=1e-10):
@@ -247,21 +241,6 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
             # Store the processed signal
             all_signals.append(samples)
 
-            print("🔍 Zarr Metadata Snapshot:", {
-                "lower": normalized_annotation[SigMFFile.FLO_KEY],
-                "upper": normalized_annotation[SigMFFile.FHI_KEY],
-                "center": 0.0
-            })
-
-            print(f"📦 Using Normalized Metadata:\n  flo={normalized_annotation[SigMFFile.FLO_KEY]} "
-                  f"fhi={normalized_annotation[SigMFFile.FHI_KEY]}")
-            print("🧪 Confirm Keys in Normalized Annotation:",
-                  normalized_annotation.keys())
-            print("📦 Metadata Being Saved:", {
-                "lower_freq": normalized_annotation.get(SigMFFile.FLO_KEY, '❌ Missing'),
-                "upper_freq": normalized_annotation.get(SigMFFile.FHI_KEY, '❌ Missing')
-            })
-
             class_name = normalized_annotation.get("core:label", "unknown")
 
             if class_name not in class_map:
@@ -273,7 +252,7 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
             # ✅ Store metadata in TorchSig-compatible format
             metadata.append({
                 "bandwidth": normalized_annotation[SigMFFile.FHI_KEY] - normalized_annotation[SigMFFile.FLO_KEY],
-                "center_freq": 0.0,  # ✅ Center frequency should be zero in baseband!
+                "center_freq": (normalized_annotation[SigMFFile.FLO_KEY] + normalized_annotation[SigMFFile.FHI_KEY]) / 2,
                 "class_index": class_index,
                 "class_name": class_name,
                 "duration": global_sample_count / sample_rate,
@@ -296,7 +275,7 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
     save_to_single_zarr(zarr_path, all_signals, metadata, frame_size)
 
 
-def save_to_single_zarr(output_path, all_signals, metadata, frame_size=4096):
+def save_to_single_zarr(zarr_path, all_signals, metadata, frame_size=4096):
     """
     Saves all extracted narrowband signals into a single Zarr array.
 
@@ -307,10 +286,9 @@ def save_to_single_zarr(output_path, all_signals, metadata, frame_size=4096):
         frame_size (int): Frame size (default 4096 for TorchSig compatibility).
     """
 
-    zarr_path = os.path.join(output_path, "data.zarr")
     if os.path.exists(zarr_path):
         shutil.rmtree(zarr_path)
-    os.makedirs(output_path, exist_ok=True)
+    os.makedirs(os.path.dirname(zarr_path), exist_ok=True)
 
     if all_signals.size == 0:
         warnings.warn("⚠️ No valid signals to save. Skipping Zarr storage.")
@@ -344,7 +322,7 @@ def save_to_single_zarr(output_path, all_signals, metadata, frame_size=4096):
     zarr_store.attrs.update(formatted_metadata)
 
     print(
-        f"✅ Successfully saved {all_signals.shape[0]} signals to {output_path}/data.zarr")
+        f"✅ Successfully saved {all_signals.shape[0]} signals to {zarr_path}")
 
 
 # 🚀 Run preprocessing
