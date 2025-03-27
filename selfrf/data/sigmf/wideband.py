@@ -74,7 +74,6 @@ def preprocess_wideband_sigmf_files(
         sample_rate = sigmf.get_global_field(SigMFFile.SAMPLE_RATE_KEY)
         file_length = len(sigmf)
         annotations = sigmf.get_annotations()
-        file_name = os.path.basename(filepath)
 
         for frame_start in range(0, file_length - frame_size, step_size):
             frame_end = frame_start + frame_size
