@@ -5,13 +5,12 @@ from torchsig.datasets.dataset_metadata import DatasetMetadata, NarrowbandMetada
 from torchsig.datasets.datamodules import WidebandDataModule
 from torchsig.datasets.default_configs.loader import get_default_yaml_config
 from torchsig.datasets.dataset_utils import to_dataset_metadata
+from torchsig.signals.signal_lists import TorchSigSignalLists
 
 from selfrf.pretraining.config import BaseConfig
 from selfrf.pretraining.utils.enums import DatasetType
 from selfrf.pretraining.factories.collate_fn_factory import build_collate_fn
 from selfrf.pretraining.factories.transform_factory import build_transform, build_target_transform
-
-FFT_SIZE = 512
 
 
 class DatasetFactory:
@@ -32,7 +31,7 @@ class DatasetFactory:
             num_samples_train=config.num_samples,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
-            transforms=build_transform(config),
+            transforms=[build_transform(config)],
             target_transforms=build_target_transform(config),
             collate_fn=build_collate_fn(config),
         )
@@ -53,19 +52,14 @@ def get_narrowband_metadata(config: BaseConfig) -> NarrowbandMetadata:
         impairment_level=2,
         train=True,
     )
-    metadata["overrides"]["snr_db_min"] = 10
-    metadata["overrides"]["signal_bandwidth_min"] = 1_000_000
-    metadata["overrides"]["signal_bandwidth_max"] = 1_000_0000
-    metadata["overrides"]["impairment_level"] = 2
-    metadata["overrides"]["num_iq_samples_dataset"] = FFT_SIZE**2
-    metadata["overrides"]["fft_size"] = FFT_SIZE
 
-    # Set valid duration bounds based on constraints
-    max_duration = 0.00262144  # max allowed for FFT_SIZE=512
-    min_duration = 0.00131072  # min required based on error message
+    metadata["overrides"]["snr_db_min"] = 20
+    metadata["overrides"]["sample_rate"] = 10_000_000
+    metadata["overrides"]["signal_bandwidth_min"] = 1_500_000
+    metadata["overrides"]["signal_bandwidth_max"] = 2_000_000
+    metadata["overrides"]["num_iq_samples_dataset"] = 4096
+    metadata["overrides"]["fft_size"] = config.nfft
 
-    metadata["overrides"]["signal_duration_max"] = max_duration
-    metadata["overrides"]["signal_duration_min"] = min_duration
     metadata = to_dataset_metadata(metadata)
     return metadata
 
@@ -77,15 +71,15 @@ def get_wideband_metadata(config: BaseConfig) -> WidebandMetadata:
         train=True,
     )
     metadata["overrides"]["snr_db_min"] = 10
-    metadata["overrides"]["signal_bandwidth_min"] = 1_000_000
-    metadata["overrides"]["signal_bandwidth_max"] = 1_000_0000
+    metadata["overrides"]["signal_bandwidth_min"] = 5_000_000
+    metadata["overrides"]["signal_bandwidth_max"] = 13_000_000
     metadata["overrides"]["impairment_level"] = 2
-    metadata["overrides"]["num_iq_samples_dataset"] = FFT_SIZE**2
-    metadata["overrides"]["fft_size"] = FFT_SIZE
+    metadata["overrides"]["num_iq_samples_dataset"] = config.nfft**2
+    metadata["overrides"]["fft_size"] = config.nfft
 
     # Set valid duration bounds based on constraints
-    max_duration = 0.00262144  # max allowed for FFT_SIZE=512
-    min_duration = 0.00131072  # min required based on error message
+    max_duration = 0.00065536  # Maximum allowed value per error message
+    min_duration = 0.00016384  # Minimum required value per error message
 
     metadata["overrides"]["signal_duration_max"] = max_duration
     metadata["overrides"]["signal_duration_min"] = min_duration

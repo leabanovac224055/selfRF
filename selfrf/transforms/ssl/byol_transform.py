@@ -5,35 +5,49 @@ from torch import Tensor
 from torchsig.signals import DatasetSignal
 from torchsig.transforms.base_transforms import Transform, RandomApply, Compose
 from torchsig.transforms.dataset_transforms import (
-    TimeReversal, SpectralInversionDatasetTransform,
-    ComplexTo2D, DatasetTransform)
+    TimeReversal,
+    SpectralInversionDatasetTransform,
+    ComplexTo2D,
+    DatasetTransform,
+    CutOut,
+    RandomMagRescale,
+)
+
 
 from ..extra import torchsig_legacy_transforms as T_LEGACY
 from ..extra import MultiViewTransform, RandomAWGN
 
 
 class BYOLView1Transform(Transform):
-    def __init__(self,
-                 max_time_shift: int = 500,
-                 max_freq_shift: float = 0.35,
-                 tr_prob: float = 0.5,
-                 si_prob: float = 0.5,
-                 noise_power_db: Tuple = (-30, 10),
-                 min_amplitude_scale: float = -6,
-                 max_amplitude_scale: float = 6,
-                 max_phase_shift_rad: float = np.pi/4,
-                 tensor_transform: DatasetTransform = ComplexTo2D(),
-                 ) -> None:
+    def __init__(
+        self,
+        max_time_shift: int = 500,
+        max_freq_shift: float = 0.15,
+        tr_prob: float = 0.5,
+        si_prob: float = 0.5,
+        noise_power_db: tuple = (0, 20),
+        cutout_duration: tuple = (0.05, 0.1),
+        min_amplitude_scale: float = 0.5,
+        max_amplitude_scale: float = 2,
+        max_phase_shift_rad: float = np.pi/4,
+        tensor_transform: DatasetTransform = ComplexTo2D(),
+    ) -> None:
         super().__init__()
 
         transforms = [
             T_LEGACY.RandomTimeShift((-max_time_shift, max_time_shift)),
             T_LEGACY.RandomFrequencyShift((-max_freq_shift, max_freq_shift)),
-            RandomApply(TimeReversal(), tr_prob),
+            RandomApply(TimeReversal(allow_spectral_inversion=False), tr_prob),
             RandomApply(SpectralInversionDatasetTransform(), si_prob),
-            RandomAWGN(noise_power_db),
-            # AmplitudeScale((min_amplitude_scale, max_amplitude_scale)),
-            # T_LEGACY.RandomPhaseShift((0, max_phase_shift_rad)),
+            CutOut(
+                duration=cutout_duration,
+                cut_type=["zeros"],
+            ),
+            RandomMagRescale(
+                scale=(min_amplitude_scale, max_amplitude_scale),
+            ),
+            RandomAWGN(noise_power_db=noise_power_db),
+            T_LEGACY.RandomPhaseShift((0, max_phase_shift_rad)),
             tensor_transform,
         ]
 
@@ -45,28 +59,35 @@ class BYOLView1Transform(Transform):
 
 
 class BYOLView2Transform(Transform):
-    def __init__(self,
-                 max_time_shift: int = 1000,
-                 max_freq_shift: float = 0.35,
-                 tr_prob: float = 0.3,
-                 si_prob: float = 0.3,
-                 noise_power_db: Tuple = (-30, 10),
-
-                 min_amplitude_scale: float = -10,
-                 max_amplitude_scale: float = 10,
-                 max_phase_shift_rad: float = np.pi/8,
-                 tensor_transform: DatasetTransform = ComplexTo2D(),
-                 ) -> None:
+    def __init__(
+        self,
+        max_time_shift: int = 500,
+        max_freq_shift: float = 0.15,
+        tr_prob: float = 0.5,
+        si_prob: float = 0.5,
+        noise_power_db: tuple = (0, 20),
+        cutout_duration: tuple = (0.05, 0.1),
+        min_amplitude_scale: float = 0.5,
+        max_amplitude_scale: float = 2,
+        max_phase_shift_rad: float = np.pi/4,
+        tensor_transform: DatasetTransform = ComplexTo2D(),
+    ) -> None:
         super().__init__()
 
         transforms = [
             T_LEGACY.RandomTimeShift((-max_time_shift, max_time_shift)),
             T_LEGACY.RandomFrequencyShift((-max_freq_shift, max_freq_shift)),
-            RandomApply(TimeReversal(), tr_prob),
+            RandomApply(TimeReversal(allow_spectral_inversion=False), tr_prob),
             RandomApply(SpectralInversionDatasetTransform(), si_prob),
-            RandomAWGN(noise_power_db),
-            # AmplitudeScale((min_amplitude_scale, max_amplitude_scale)),
-            # T_LEGACY.RandomPhaseShift((0, max_phase_shift_rad)),
+            CutOut(
+                duration=cutout_duration,
+                cut_type=["zeros"],
+            ),
+            RandomMagRescale(
+                scale=(min_amplitude_scale, max_amplitude_scale),
+            ),
+            RandomAWGN(noise_power_db=noise_power_db),
+            T_LEGACY.RandomPhaseShift((0, max_phase_shift_rad)),
             tensor_transform,
         ]
 
@@ -83,6 +104,7 @@ class BYOLTransform(MultiViewTransform):
         view_1_transform: Optional[BYOLView1Transform] = None,
         view_2_transform: Optional[BYOLView2Transform] = None,
         tensor_transform: DatasetTransform = ComplexTo2D(),
+        **kwargs,
     ):
         # We need to initialize the transforms here
         view_1_transform = view_1_transform or BYOLView1Transform(

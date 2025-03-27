@@ -9,7 +9,6 @@ from selfrf.pretraining.utils.enums import BackboneProvider, BackboneType, Datas
 # Default values as constants
 DEFAULT_DATASET = DatasetType.TORCHSIG_NARROWBAND
 DEFAULT_ROOT = './datasets'
-DEFAULT_DOWNLOAD = False
 DEFAULT_FAMILY = False
 DEFAULT_SPECTROGRAM = False
 DEFAULT_NFFT = 512
@@ -21,7 +20,6 @@ DEFAULT_IMPAIRMENT_LEVEL = 2
 DEFAULT_BACKBONE = BackboneType.RESNET50
 DEFAULT_BACKBONE_PROVIDER = BackboneProvider.TIMM
 
-DEFAULT_EMBEDDING_DIM = 2048
 DEFAULT_DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 DEFAULT_TO_FLOAT_32 = False
 DATASET_IQ_SAMPLES = {
@@ -35,7 +33,6 @@ class BaseConfig:
     dataset: DatasetType = DEFAULT_DATASET
     dataset_name: str = None
     root: str = DEFAULT_ROOT
-    download: bool = False
     family: bool = DEFAULT_FAMILY
     impairment_level: int = DEFAULT_IMPAIRMENT_LEVEL
     num_samples: int = DEFAULT_NUM_SAMPLES
@@ -64,7 +61,6 @@ class BaseConfig:
 
     backbone: BackboneType = DEFAULT_BACKBONE
     backbone_provider: BackboneProvider = DEFAULT_BACKBONE_PROVIDER
-    embedding_dim: int = DEFAULT_EMBEDDING_DIM
 
     device: torch.device = DEFAULT_DEVICE
     to_float_32: bool = DEFAULT_TO_FLOAT_32
@@ -86,11 +82,6 @@ def add_base_config_args(parser: argparse.ArgumentParser) -> None:
         '--root',
         type=str,
         default=DEFAULT_ROOT,
-    )
-    parser.add_argument(
-        '--download',
-        type=lambda x: x.lower() == 'true',
-        default=DEFAULT_DOWNLOAD,
     )
     parser.add_argument(
         '--family',
@@ -140,11 +131,6 @@ def add_base_config_args(parser: argparse.ArgumentParser) -> None:
         '--num-workers',
         type=int,
         default=DEFAULT_NUM_WORKERS,
-    )
-    parser.add_argument(
-        '--embedding-dim',
-        type=int,
-        default=DEFAULT_EMBEDDING_DIM,
     )
     parser.add_argument(
         '--backbone',

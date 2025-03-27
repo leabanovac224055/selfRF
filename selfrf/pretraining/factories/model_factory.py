@@ -1,12 +1,13 @@
 from dataclasses import dataclass
-from typing import Dict, Type, Callable
+from typing import Dict, Type, Callable, Union
 import torch
 
 from selfrf.pretraining.config import TrainingConfig, BaseConfig
+from selfrf.pretraining.config.evaluation_config import EvaluationConfig
 from selfrf.pretraining.utils.utils import get_class_list
 from selfrf.models.iq_models import build_resnet1d
 from selfrf.models.spectrogram_models import build_resnet2d, build_vit
-from selfrf.models.ssl_models import BYOL, DINO
+from selfrf.models.ssl_models import BYOL, DINO, DenseCL
 from selfrf.pretraining.utils.enums import BackboneArchitecture, SSLModelType
 from selfrf.models.iq_models.xcit.xcit1d import XCiT1d
 
@@ -27,11 +28,12 @@ class ModelFactory:
 
     _ssl_registry: Dict[SSLModelType, Type] = {
         SSLModelType.BYOL: BYOL,
-        SSLModelType.DINO: DINO
+        SSLModelType.DINO: DINO,
+        SSLModelType.DENSECL: DenseCL,
     }
 
     @classmethod
-    def create_backbone(cls, config: BaseConfig) -> torch.nn.Module:
+    def create_backbone(cls, config: Union[TrainingConfig, EvaluationConfig]) -> torch.nn.Module:
         """Create backbone from config"""
         backbone_arch = config.backbone.get_architecture()
         is_spectrogram = config.spectrogram
@@ -60,10 +62,16 @@ class ModelFactory:
                 "\n".join(f"- {c}" for c in available_configs)
             )
 
+        if isinstance(config, EvaluationConfig):
+            return builder(
+                version=config.backbone.get_size().value,
+                provider=config.backbone_provider,
+            )
+
         return builder(
             version=config.backbone.get_size().value,
             provider=config.backbone_provider,
-            n_features=config.embedding_dim
+            feature_only=True if config.ssl_model == SSLModelType.DENSECL else False,
         )
 
     @classmethod
@@ -74,7 +82,6 @@ class ModelFactory:
         ssl_model = cls._ssl_registry[ssl_type]
         return ssl_model(
             backbone=backbone,
-            num_ftrs=config.embedding_dim,
             batch_size_per_device=config.batch_size,
             use_online_linear_eval=config.online_linear_eval,
             num_classes=len(get_class_list(config))

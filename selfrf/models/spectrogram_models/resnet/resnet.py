@@ -11,21 +11,41 @@ from selfrf.pretraining.utils.enums import BackboneProvider
 __all__ = ["build_resnet2d"]
 
 
-class SelectStage(nn.Module):
-    """Selects features from a specific ResNet stage."""
+class Detectron2ResNet(nn.Module):
+    """ResNet backbone from Detectron2 with feature extraction capabilities."""
 
-    def __init__(self, stage: str = "res5"):
+    def __init__(
+        self,
+        resnet: nn.Module,
+        n_features,
+        stage_name="res5",
+        feature_only: bool = False,
+    ):
         super().__init__()
-        self.stage = stage
+        self.resnet = resnet
+        self.stage = stage_name
+        self.pool = torch.nn.AdaptiveAvgPool2d(1)
+        self.feature_only = feature_only  # Flag to determine output type
 
     def forward(self, x):
-        return x[self.stage]
+        features = self.resnet(x)
+
+        # Extract the feature map from the specified stage
+        stage_output = features[self.stage]
+
+        if self.feature_only:
+            # Return feature maps
+            return stage_output
+        else:
+            # Return vector
+            return self.pool(stage_output)
 
 
 def build_detectron2_resnet(
     input_channels: int,
     n_features: int,
     version: str = "50",
+    feature_only: bool = True,
 ) -> nn.Module:
     """Build ResNet backbone using Detectron2."""
 
@@ -45,21 +65,20 @@ def build_detectron2_resnet(
     # Build model
     det_model = build_model(cfg)
 
-    # Create backbone with pooling just like in timm
-    return nn.Sequential(
-        det_model.backbone.bottom_up,
-        SelectStage("res5"),
-        nn.AdaptiveAvgPool2d(1),
-        nn.Flatten(),
-        nn.Linear(2048, n_features)
+    return Detectron2ResNet(
+        resnet=det_model.backbone.bottom_up,
+        stage_name="res5",
+        n_features=n_features,
+        feature_only=feature_only,
     )
 
 
 def build_resnet2d(
     input_channels: int,
-    n_features: int,
+    n_features: int = 2048,
     version: str = "50",
     provider: BackboneProvider = BackboneProvider.TIMM,
+    feature_only: bool = False,
 ):
     """Constructs and returns a version of the ResNet model.
     Args:
@@ -85,7 +104,7 @@ def build_resnet2d(
         model = timm.create_model(
             "resnet" + version,
             in_chans=input_channels,
-            features_only=False,
+            features_only=feature_only,
         )
 
         model.fc = nn.Linear(model.fc.in_features, n_features)
@@ -96,7 +115,8 @@ def build_resnet2d(
         return build_detectron2_resnet(
             input_channels=input_channels,
             n_features=n_features,
-            version=version
+            version=version,
+            features_only=feature_only,
         )
 
     else:

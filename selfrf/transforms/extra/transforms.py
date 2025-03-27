@@ -1,34 +1,79 @@
 
-from typing import Sequence
+import random
+from typing import List, Sequence, Tuple, Union
 from copy import deepcopy
 import numpy as np
 import torch
 
 import torchaudio
-from torchsig.signals.signal_types import Signal, DatasetSignal
+from torchsig.signals.signal_types import DatasetSignal
 from torchsig.transforms.base_transforms import Transform, Compose
 from torchsig.transforms.dataset_transforms import DatasetTransform
 import torchsig.transforms.functional as torchsig_F
 from copy import deepcopy
 import numpy as np
 
-from selfrf.transforms.extra.torchsig_legacy_utils import (
-    get_distribution,
-    NumericParameter
-)
-
 from . import functional as F
 
 __all__ = [
+    "RandomPrinter",
     "MultiViewTransform",
     "RandomAWGN",
     "AmplitudeScale",
     "ToDtype",
-    "SpectrogramImage",
     "SpectrogramImageHighQuality",
     "ToTensor",
     "ToSpectrogramTensor",
 ]
+
+
+class RandomPrinter(DatasetTransform):
+    """Debug transform that prints random values from a distribution.
+
+    Useful for testing if DataLoader workers are using different random seeds.
+
+    Args:
+        value_range: Range for random values (min, max)
+        name: Name to identify this instance in debug outputs
+    """
+
+    def __init__(
+        self,
+        value_range: Union[List, Tuple] = (0, 1000),
+        name: str = "debug",
+        **kwargs
+    ) -> None:
+        super().__init__(**kwargs)
+        self.value_distribution = self.get_distribution(value_range)
+        self.name = name
+
+        # Get worker info for debugging
+        worker_info = torch.utils.data.get_worker_info()
+        worker_id = worker_info.id if worker_info else "main"
+
+        # Print initialization message
+        print(f"RandomPrinter '{self.name}' initialized in worker {worker_id}")
+
+        # Set instance counter to track call sequence
+        self.counter = 0
+
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        """Sample from distribution and print value without modifying signal."""
+        # Get random value from distribution
+        value = self.value_distribution()
+
+        # Get worker info
+        worker_info = torch.utils.data.get_worker_info()
+        worker_id = worker_info.id if worker_info else "main"
+
+        # Increment counter
+        self.counter += 1
+
+        # Print debug info
+        print(f"[Worker {worker_id}] {self.name} #{self.counter}: {value}")
+
+        # Return unmodified signal
+        return signal
 
 
 class MultiViewTransform(Transform):
@@ -38,7 +83,7 @@ class MultiViewTransform(Transform):
         super().__init__()
         self.transforms = transforms
 
-    def __call__(self, signal: Signal | DatasetSignal) -> Signal | DatasetSignal:
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         """Creates independent views with separate data copies and returns all views"""
         views = []
         for transform in self.transforms:
@@ -47,10 +92,8 @@ class MultiViewTransform(Transform):
             transformed_view = transform(data_copy)
             views.append(transformed_view)
 
-            # For object-based signals, create a new Signal-like object
-        result = deepcopy(signal)
-        result.data = [view.data for view in views]
-        return result
+        signal.data = [view.data for view in views]
+        return signal
 
 
 class RandomAWGN(DatasetTransform):
@@ -70,11 +113,12 @@ class RandomAWGN(DatasetTransform):
 
     def __init__(
         self,
-        noise_power_db: NumericParameter = (0, 20.0),
+        noise_power_db: Union[List, Tuple] = (0, 20.0),
         **kwargs
     ) -> None:
         super().__init__(**kwargs)
-        self.noise_power_db_distribution = get_distribution(noise_power_db)
+        self.noise_power_db_distribution = self.get_distribution(
+            noise_power_db)
 
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         """Apply random AWGN to the signal."""
@@ -104,14 +148,15 @@ class AmplitudeScale(DatasetTransform):
 
     def __init__(
         self,
-        scale: NumericParameter = (0.5, 2.0),
+        scale: Union[List, Tuple] = (0.5, 2.0),
         **kwargs
     ) -> None:
         super().__init__(**kwargs)
-        self.scale = get_distribution(scale)
+        self.scale_distribution = self.get_distribution(scale)
 
-    def transform_data(self, signal: Signal) -> Signal:
-        signal.data = F.amplitude_scale(signal.data, self.scale)
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        scale_value = self.scale_distribution()
+        signal.data = F.amplitude_scale(signal.data, scale_value)
         self.update(signal)
         return signal
 
@@ -141,38 +186,6 @@ class ToDtype(DatasetTransform):
         return signal
 
 
-class SpectrogramImage(DatasetTransform):
-    """Normalize spectrogram values to range [0,1]
-    """
-
-    def __init__(
-        self,
-        scale: int = 1,  # Default to [0,1] instead of [0,255]
-        **kwargs
-    ) -> None:
-        super().__init__(**kwargs)
-        self.scale = scale
-
-    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-
-        magnitude = np.abs(signal.data)
-
-        magnitude_min = np.min(magnitude)
-        magnitude_max = np.max(magnitude)
-
-        if magnitude_max > magnitude_min:
-            normalized = (magnitude - magnitude_min) / \
-                (magnitude_max - magnitude_min) * self.scale
-        else:
-            normalized = np.zeros_like(
-                magnitude)  # Handle uniform case
-
-        signal.data = normalized
-
-        self.update(signal)
-        return signal
-
-
 class ToTensor(DatasetTransform):
     """Converts a numpy array to a PyTorch tensor.
 
@@ -184,19 +197,13 @@ class ToTensor(DatasetTransform):
 
     def __init__(
         self,
-        to_float_32: bool = False
     ) -> None:
         super().__init__()
-        self.to_float_32 = to_float_32
 
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
 
         # convert to torch tensor
         tensor = torch.from_numpy(signal.data)
-
-        # convert to float32 if requested
-        if self.to_float_32:
-            tensor = tensor.float()
 
         signal.data = tensor
         self.update(signal)
@@ -306,6 +313,9 @@ class SpectrogramImageHighQuality(DatasetTransform):
         # Invert colors if requested (common in RF visualization)
         if self.invert:
             x = 1.0 - x
+
+        # add channel dimension
+        x = x.unsqueeze(0)
 
         # Convert back to numpy array for compatibility with other transforms
         signal.data = x

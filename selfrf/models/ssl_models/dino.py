@@ -1,4 +1,9 @@
-from typing import Tuple
+
+class DINO:
+    pass
+
+
+""" from typing import Tuple
 from pytorch_lightning import LightningModule
 import torch
 import torch.nn as nn
@@ -66,7 +71,7 @@ class DINO(LightningModule):
         return projections
 
     def measure_similarity(self, global_views: torch.Tensor, local_views: torch.Tensor):
-        """Computes similarity between teacher (global) and student (local) views."""
+        Computes similarity between teacher (global) and student (local) views
         similarities = []
         mse_values = []
 
@@ -94,10 +99,10 @@ class DINO(LightningModule):
         similarity, _ = self.measure_similarity(teacher_proj_0, student_proj_0)
 
         # **Fix:** Pass similarity only when needed
-        if hasattr(DINOTransform, "similarity"):
+         if hasattr(DINOTransform, "similarity"):
             dino_transform = DINOTransform(similarity=similarity)
         else:
-            dino_transform = DINOTransform()
+            dino_transform = DINOTransform() 
 
         loss = self.criterion(
             teacher_out=[teacher_proj_0, teacher_proj_1],
@@ -121,3 +126,4 @@ class DINO(LightningModule):
             "interval": "step",
         }
         return [optimizer], [scheduler]
+ """

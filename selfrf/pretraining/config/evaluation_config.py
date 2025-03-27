@@ -28,22 +28,22 @@ def add_evaluation_config_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         '--tsne',
         type=lambda x: x.lower() == 'true',
-        default=True,
+        default=DEFAULT_TSNE,
     )
     parser.add_argument(
         '--knn',
         type=lambda x: x.lower() == 'true',
-        default=True,
+        default=DEFAULT_KNN,
     )
     parser.add_argument(
         '--n-neighbors',
         type=int,
-        default=5,
+        default=DEFAULT_N_NEIGHBORS,
     )
     parser.add_argument(
-        '--export-path',
+        '--evaluation-path',
         type=str,
-        default='./evaluation',
+        default=DEFAULT_EVALUATION_PATH,
     )
 
 
@@ -71,7 +71,7 @@ def parse_evaluation_config() -> EvaluationConfig:
         tsne=args.tsne,
         knn=args.knn,
         n_neighbors=args.n_neighbors,
-        evaluation_path=args.export_path  # Note the name difference in CLI arg
+        evaluation_path=args.evaluation_path
     )
 
     return evaluation_config

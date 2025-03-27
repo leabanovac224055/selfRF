@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, auto
 from dataclasses import dataclass
 
 
@@ -165,9 +165,27 @@ class BackboneType(Enum):
         return self.name
 
 
+class CollateType(Enum):
+    MULTI_VIEW = auto()
+    SINGLE_VIEW = auto()
+
+
 class SSLModelType(Enum):
-    BYOL = "byol"
-    DINO = "dino"
+    """SSL model types with their corresponding collate function type"""
+    # Format: (value, collate_type)
+    BYOL = ("byol", CollateType.MULTI_VIEW)
+    DINO = ("dino", CollateType.MULTI_VIEW)
+    DENSECL = ("densecl", CollateType.MULTI_VIEW)
+    # MAE = ("mae", CollateType.SINGLE_VIEW)  # Uncomment when implementing MAE
+
+    def __init__(self, value, collate_type):
+        self._value_ = value
+        self.collate_type = collate_type
+
+    @property
+    def requires_multi_view(self):
+        """Convenience method to check if model requires multi-view collation"""
+        return self.collate_type == CollateType.MULTI_VIEW
 
 
 class DatasetType(Enum):

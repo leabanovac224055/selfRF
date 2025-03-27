@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 from selfrf.pretraining.evalutation import EvaluateKNN, VisualizeTSNE
 from selfrf.pretraining.config import EvaluationConfig, parse_evaluation_config, print_config
-from selfrf.pretraining.factories import build_dataset, build_backbone
+from selfrf.pretraining.factories import build_dataloader, build_backbone
 from selfrf.pretraining.utils.utils import get_class_list
 
 
@@ -18,16 +18,17 @@ def evaluate(config: EvaluationConfig):
     if not config.model_path:
         raise ValueError("model_path is required for evaluation")
 
-    datamodule = build_dataset(config)
+    datamodule = build_dataloader(config)
 
     model = build_backbone(config)
+
+    # Load checkpoint
     checkpoint = torch.load(
         config.model_path,
         map_location=config.device,
-        weights_only=True,
+        weights_only=False,
     )
 
-    # Load model state dict
     model.load_state_dict(checkpoint)
 
     model = model.to(config.device)
@@ -67,7 +68,7 @@ def evaluate(config: EvaluationConfig):
     print(f"t-SNE plot saved at {plot_path}")
 
     print("Start KNN evaluation...")
-    accuracy = EvaluateKNN(representations, labels, n_neighbors=3).evaluate()
+    accuracy = EvaluateKNN(representations, labels, n_neighbors=50).evaluate()
     print(f"Accuracy: {accuracy}")
 
 

@@ -10,12 +10,12 @@ __all__ = ["build_resnet1d"]
 
 def build_resnet1d(
     input_channels: int,
-    n_features: int,
+    n_features: int = 2048,
     version: str = "18",
     provider: BackboneProvider = BackboneProvider.TIMM,
     drop_path_rate: float = 0.2,
     drop_rate: float = 0.3,
-    features_only=False
+    feature_only=False,
 ):
     """Constructs and returns a 1d version of the ResNet model.
     Args:
@@ -44,10 +44,10 @@ def build_resnet1d(
                 in_chans=input_channels,
                 drop_path_rate=drop_path_rate,
                 drop_rate=drop_rate,
-                features_only=features_only
+                features_only=feature_only
             )
         )
-        if not features_only:
+        if not feature_only:
             mdl.fc = Linear(mdl.fc.in_features, n_features)
         return mdl
     else:

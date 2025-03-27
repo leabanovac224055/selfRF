@@ -14,17 +14,19 @@ from lightly.utils.lars import LARS
 
 
 class BYOL(LightningModule):
-    def __init__(self,
-                 num_classes: int,
-                 batch_size_per_device: int,
-                 backbone: nn.Module,
-                 num_ftrs: int = 2048,
-                 hidden_dim: int = 4096,
-                 out_dim: int = 256,
-                 start_momentum: float = 0.97,
-                 use_online_linear_eval: bool = False,
-                 ):
-        super(BYOL, self).__init__()
+    def __init__(
+        self,
+        num_classes: int,
+        batch_size_per_device: int,
+        backbone: nn.Module,
+        num_ftrs: int = 2048,
+        hidden_dim: int = 4096,
+        out_dim: int = 256,
+        start_momentum: float = 0.97,
+        use_online_linear_eval: bool = False,
+    ):
+        super().__init__()
+
         self.save_hyperparameters(ignore=['backbone'])
         self.batch_size_per_device = batch_size_per_device
 

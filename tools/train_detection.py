@@ -30,7 +30,7 @@ def train(config: Detectron2Config):
         visualize_dataset(config, VISUALIZE_N_SAMPLES)
 
     if INFERENCE:
-        inference_dataset(config, 0.3, VISUALIZE_N_SAMPLES)
+        inference_dataset(config, 0.7, VISUALIZE_N_SAMPLES)
         return
 
     if config.model_type.is_lazy_config:

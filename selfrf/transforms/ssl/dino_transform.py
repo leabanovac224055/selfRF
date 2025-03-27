@@ -105,10 +105,14 @@ class AdaptiveDINOViewTransform(Transform):
 class DINOTransform(MultiViewTransform):
     """DINO Multi-View Transform (Supports Adaptive Augmentation)."""
 
-    def __init__(self, similarity: Optional[float] = None,
-                 view_1_transform: Optional[DINOView1Transform] = None,
-                 view_2_transform: Optional[DINOView2Transform] = None,
-                 tensor_transform: DatasetTransform = ComplexTo2D()):
+    def __init__(
+            self,
+            similarity: Optional[float] = None,
+            view_1_transform: Optional[DINOView1Transform] = None,
+            view_2_transform: Optional[DINOView2Transform] = None,
+            tensor_transform: DatasetTransform = ComplexTo2D(),
+            **kwargs,
+    ):
 
         # Standard global view (Easy for teacher)
         view_1_transform = view_1_transform or DINOView1Transform(

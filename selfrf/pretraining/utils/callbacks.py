@@ -1,4 +1,4 @@
-from lightning.pytorch.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pathlib import Path
 import torch
 

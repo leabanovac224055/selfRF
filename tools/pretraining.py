@@ -1,9 +1,7 @@
 import os
-import torch
 from dotenv import load_dotenv
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
-
 from selfrf.pretraining.config import TrainingConfig, parse_training_config, print_config
 from selfrf.pretraining.factories import build_dataloader, build_ssl_model
 from selfrf.pretraining.utils.callbacks import ModelAndBackboneCheckpoint
@@ -28,7 +26,7 @@ def train(config: TrainingConfig):
     checkpoint_callback = ModelAndBackboneCheckpoint(
         dirpath=f"{logger.save_dir}/lightning_logs/version_{logger.version}",
         filename=(
-            f"{config.ssl_model.value}"
+            f"{config.ssl_model.name}"
             f"-{config.backbone.value}"
             f"-{config.dataset.value}"
             f"-{'spec' if config.spectrogram else 'iq'}"
@@ -36,8 +34,9 @@ def train(config: TrainingConfig):
             f"-b{config.batch_size}"
             f"-loss{{train_loss:.3f}}"
         ),
-        save_top_k=1,
+        save_top_k=10,
         verbose=True,
+        save_last=True,
         monitor="train_loss",
         mode="min",
     )
