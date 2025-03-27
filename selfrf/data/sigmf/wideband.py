@@ -7,6 +7,45 @@ from tqdm import tqdm
 from typing import List, Dict, Any
 from sigmf import sigmffile
 from sigmf.sigmffile import SigMFFile
+from copy import deepcopy
+
+
+def get_capture_for_annotation(sigmf_file: SigMFFile, annotation: dict) -> dict:
+    annotation_start = annotation[SigMFFile.START_INDEX_KEY]
+    captures = sigmf_file.get_captures()
+
+    for capture in captures:
+        capture_start = capture.get(SigMFFile.START_INDEX_KEY, 0)
+        next_capture_start = float('inf')
+
+        for next_capture in captures:
+            next_start = next_capture.get(SigMFFile.START_INDEX_KEY, 0)
+            if next_start > capture_start and next_start < next_capture_start:
+                next_capture_start = next_start
+
+        if capture_start <= annotation_start < next_capture_start:
+            return capture
+
+    return captures[0] if captures else {}
+
+
+def normalize_annotation_to_frame(annotation: dict, sample_start: int, sample_count: int, center_freq: float) -> dict:
+    annotation_abs_end = annotation[SigMFFile.START_INDEX_KEY] + \
+        annotation[SigMFFile.LENGTH_INDEX_KEY]
+    frame_end = sample_start + sample_count
+    annotation_start = max(sample_start, annotation[SigMFFile.START_INDEX_KEY])
+    annotation_end = min(frame_end, annotation_abs_end)
+
+    if annotation_start >= frame_end or annotation_end <= sample_start:
+        return None
+
+    copy = deepcopy(annotation)
+    copy[SigMFFile.START_INDEX_KEY] = annotation_start - sample_start
+    copy[SigMFFile.LENGTH_INDEX_KEY] = annotation_end - annotation_start
+    copy[SigMFFile.FLO_KEY] = annotation[SigMFFile.FLO_KEY] - center_freq
+    copy[SigMFFile.FHI_KEY] = annotation[SigMFFile.FHI_KEY] - center_freq
+
+    return copy
 
 
 def preprocess_wideband_sigmf_files(
@@ -30,7 +69,7 @@ def preprocess_wideband_sigmf_files(
     class_map = {}
     class_counter = 0
 
-    for file_idx, filepath in enumerate(tqdm(filepaths, desc="Processing SigMF wideband files")):
+    for filepath in tqdm(filepaths, desc="Processing SigMF wideband files"):
         sigmf = sigmffile.fromfile(filepath)
         sample_rate = sigmf.get_global_field(SigMFFile.SAMPLE_RATE_KEY)
         file_length = len(sigmf)
@@ -75,19 +114,19 @@ def preprocess_wideband_sigmf_files(
                         class_counter += 1
                     class_index = class_map[class_name]
 
-                    normalized = {
-                        SigMFFile.START_INDEX_KEY: int(ann_start),
-                        SigMFFile.LENGTH_INDEX_KEY: int(ann_len),
-                        SigMFFile.FLO_KEY: ann.get(SigMFFile.FLO_KEY, 0.0),
-                        SigMFFile.FHI_KEY: ann.get(SigMFFile.FHI_KEY, 0.0),
-                        "core:label": class_name,
-                        "class_index": class_index,
-                        "snr_db": ann.get("snr_db", 0.0)
-                    }
+                    capture = get_capture_for_annotation(sigmf, ann)
+                    center_freq = capture.get("core:frequency", 0.0)
+
+                    normalized = normalize_annotation_to_frame(
+                        ann, frame_start, frame_size, center_freq
+                    )
+
+                    if normalized is None:
+                        continue
 
                     entry = {
                         "bandwidth": normalized[SigMFFile.FHI_KEY] - normalized[SigMFFile.FLO_KEY],
-                        "center_freq": 0.0,
+                        "center_freq": (normalized[SigMFFile.FLO_KEY] + normalized[SigMFFile.FHI_KEY]) / 2,
                         "class_index": class_index,
                         "class_name": class_name,
                         "duration": frame_size / sample_rate,
@@ -96,7 +135,7 @@ def preprocess_wideband_sigmf_files(
                         "upper_freq": normalized[SigMFFile.FHI_KEY],
                         "num_samples": frame_size,
                         "sample_rate": sample_rate,
-                        "snr_db": normalized["snr_db"],
+                        "snr_db": normalized.get("snr_db", 0.0),
                         "start": frame_start / file_length,
                         "start_in_samples": frame_start,
                         "stop": frame_end / file_length,
