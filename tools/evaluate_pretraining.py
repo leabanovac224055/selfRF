@@ -22,14 +22,28 @@ def evaluate(config: EvaluationConfig):
 
     model = build_backbone(config)
 
-    # Load checkpoint
-    checkpoint = torch.load(
-        config.model_path,
-        map_location=config.device,
-        weights_only=False,
-    )
+    if config.model_path.lower() == "random" or not config.model_path:
+        print("Using randomly initialized weights")
+        # Model already has random weights from initialization
+    else:
+        print(f"Loading weights from {config.model_path}")
+        checkpoint = torch.load(
+            config.model_path,
+            map_location=config.device,
+            weights_only=False,
+        )
 
-    model.load_state_dict(checkpoint)
+        # Handle state_dict format if needed
+        if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+            checkpoint = checkpoint["state_dict"]
+
+        # Load the weights
+        try:
+            model.load_state_dict(checkpoint)
+        except Exception as e:
+            print(f"Warning: Failed to load weights exactly: {e}")
+            print("Attempting to load with strict=False...")
+            model.load_state_dict(checkpoint, strict=False)
 
     model = model.to(config.device)
     model.eval()
@@ -68,8 +82,8 @@ def evaluate(config: EvaluationConfig):
     print(f"t-SNE plot saved at {plot_path}")
 
     print("Start KNN evaluation...")
-    accuracy = EvaluateKNN(representations, labels, n_neighbors=50).evaluate()
-    print(f"Accuracy: {accuracy}")
+    EvaluateKNN(representations, labels,
+                n_neighbors=config.n_neighbors).evaluate()
 
 
 if __name__ == "__main__":
