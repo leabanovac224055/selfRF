@@ -261,9 +261,9 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
                 "num_samples": global_sample_count,
                 "sample_rate": sample_rate,
                 "snr_db": normalized_annotation.get("snr_db", 0.0),
-                "start": normalized_annotation[SigMFFile.START_INDEX_KEY] / file_length,
+                "start": normalized_annotation[SigMFFile.START_INDEX_KEY] / frame_size,
                 "start_in_samples": normalized_annotation[SigMFFile.START_INDEX_KEY],
-                "stop": (normalized_annotation[SigMFFile.START_INDEX_KEY] + global_sample_count) / file_length,
+                "stop": (normalized_annotation[SigMFFile.START_INDEX_KEY] + normalized_annotation[SigMFFile.LENGTH_INDEX_KEY]) / frame_size,
                 "stop_in_samples": normalized_annotation[SigMFFile.START_INDEX_KEY] + global_sample_count,
                 "upper_freq": normalized_annotation[SigMFFile.FHI_KEY]
             })
