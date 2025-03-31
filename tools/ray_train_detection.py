@@ -1,5 +1,6 @@
 import argparse
 import os
+import warnings
 import pyarrow
 import ray
 from ray.train.torch import TorchTrainer
@@ -10,6 +11,12 @@ from train_detection import train
 
 
 def train_on_ray(config: Detectron2Config):
+
+    warnings.filterwarnings(
+        "ignore",
+        message="`torch.cuda.amp.autocast\\(args...\\)` is deprecated",
+        category=FutureWarning
+    )
 
     ray.init()
 
