@@ -1,4 +1,3 @@
-from typing import Literal
 import timm
 import torch
 from torch import nn
@@ -17,15 +16,33 @@ class Detectron2ResNet(nn.Module):
     def __init__(
         self,
         resnet: nn.Module,
-        n_features,
+        n_features: int = 2048,
         stage_name="res5",
-        feature_only: bool = False,
+        features_only: bool = False,
     ):
         super().__init__()
         self.resnet = resnet
         self.stage = stage_name
         self.pool = torch.nn.AdaptiveAvgPool2d(1)
-        self.feature_only = feature_only  # Flag to determine output type
+        self.features_only = features_only  # Flag to determine output type
+
+        # Map ResNet stages to their output dimensions
+        stage_to_dim = {
+            "res2": 256,
+            "res3": 512,
+            "res4": 1024,
+            "res5": 2048,
+        }
+
+        # Get the expected output dimension for the selected stage
+        if stage_name in stage_to_dim:
+            in_features = stage_to_dim[stage_name]
+        else:
+            raise ValueError(f"Unknown stage name: {stage_name}")
+
+        # Add projection layer to get the desired feature dimension
+        self.projection = nn.Linear(
+            in_features, n_features) if n_features != in_features else nn.Identity()
 
     def forward(self, x):
         features = self.resnet(x)
@@ -33,19 +50,20 @@ class Detectron2ResNet(nn.Module):
         # Extract the feature map from the specified stage
         stage_output = features[self.stage]
 
-        if self.feature_only:
+        if self.features_only:
             # Return feature maps
             return stage_output
         else:
-            # Return vector
-            return self.pool(stage_output)
+            # Pool, flatten and project to n_features dimension
+            pooled = self.pool(stage_output).flatten(1)
+            return self.projection(pooled)
 
 
 def build_detectron2_resnet(
     input_channels: int,
     n_features: int,
     version: str = "50",
-    feature_only: bool = True,
+    features_only: bool = True,
 ) -> nn.Module:
     """Build ResNet backbone using Detectron2."""
 
@@ -69,7 +87,7 @@ def build_detectron2_resnet(
         resnet=det_model.backbone.bottom_up,
         stage_name="res5",
         n_features=n_features,
-        feature_only=feature_only,
+        features_only=features_only,
     )
 
 
@@ -78,7 +96,7 @@ def build_resnet2d(
     n_features: int = 2048,
     version: str = "50",
     provider: BackboneProvider = BackboneProvider.TIMM,
-    feature_only: bool = False,
+    features_only: bool = False,
 ):
     """Constructs and returns a version of the ResNet model.
     Args:
@@ -104,7 +122,7 @@ def build_resnet2d(
         model = timm.create_model(
             "resnet" + version,
             in_chans=input_channels,
-            features_only=feature_only,
+            features_only=features_only,
         )
 
         model.fc = nn.Linear(model.fc.in_features, n_features)
@@ -116,7 +134,7 @@ def build_resnet2d(
             input_channels=input_channels,
             n_features=n_features,
             version=version,
-            features_only=feature_only,
+            features_only=features_only,
         )
 
     else:

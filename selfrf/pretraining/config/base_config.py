@@ -33,6 +33,7 @@ class BaseConfig:
     dataset: DatasetType = DEFAULT_DATASET
     dataset_name: str = None
     root: str = DEFAULT_ROOT
+    absolute_root: bool = False
     family: bool = DEFAULT_FAMILY
     impairment_level: int = DEFAULT_IMPAIRMENT_LEVEL
     num_samples: int = DEFAULT_NUM_SAMPLES
@@ -82,6 +83,12 @@ def add_base_config_args(parser: argparse.ArgumentParser) -> None:
         '--root',
         type=str,
         default=DEFAULT_ROOT,
+    )
+    parser.add_argument(
+        '--absolute-root',
+        action='store_true',
+        default=False,
+        help='If true, root is absolute. '
     )
     parser.add_argument(
         '--family',

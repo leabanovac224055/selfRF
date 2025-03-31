@@ -71,7 +71,7 @@ class ModelFactory:
         return builder(
             version=config.backbone.get_size().value,
             provider=config.backbone_provider,
-            feature_only=True if config.ssl_model == SSLModelType.DENSECL else False,
+            features_only=True if config.ssl_model == SSLModelType.DENSECL else False,
         )
 
     @classmethod

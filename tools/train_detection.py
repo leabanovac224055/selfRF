@@ -21,13 +21,14 @@ INFERENCE = False
 def train(config: Detectron2Config):
     """Register datasets with detectron2."""
     # Check if root is absolute
-    if not config.not_absolute_root:  # weired double negation
+    if config.absolute_root:
         config.root = os.path.abspath(config.root)
 
     register_dataset(config)
 
     if VISUALIZE:
         visualize_dataset(config, VISUALIZE_N_SAMPLES)
+        return
 
     if INFERENCE:
         inference_dataset(config, 0.7, VISUALIZE_N_SAMPLES)

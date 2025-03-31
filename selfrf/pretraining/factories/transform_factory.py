@@ -25,6 +25,7 @@ class TransformFactory:
         return Compose([
             SpectrogramImageHighQuality(
                 nfft=config.nfft,
+                to_tensor=True,
             ),
         ])
 

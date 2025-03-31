@@ -260,6 +260,7 @@ class SpectrogramImageHighQuality(DatasetTransform):
         db_scale: bool = True,
         normalize: bool = True,
         invert: bool = True,
+        to_tensor=False,
         **kwargs
     ) -> None:
         super().__init__(**kwargs)
@@ -267,6 +268,7 @@ class SpectrogramImageHighQuality(DatasetTransform):
         self.db_scale = db_scale
         self.normalize = normalize
         self.invert = invert
+        self.to_tensor = to_tensor
 
         # Create spectrogram transform once at init time
         self.spectrogram = torchaudio.transforms.Spectrogram(
@@ -315,7 +317,8 @@ class SpectrogramImageHighQuality(DatasetTransform):
             x = 1.0 - x
 
         # add channel dimension
-        x = x.unsqueeze(0)
+        if self.to_tensor:
+            x = x.unsqueeze(0)
 
         # Convert back to numpy array for compatibility with other transforms
         signal.data = x
