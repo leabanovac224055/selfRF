@@ -135,9 +135,9 @@ def preprocess_wideband_sigmf_files(
                         "num_samples": frame_size,
                         "sample_rate": sample_rate,
                         "snr_db": normalized.get("snr_db", 0.0),
-                        "start": frame_start / file_length,
+                        "start": normalized[SigMFFile.START_INDEX_KEY] / frame_size,
                         "start_in_samples": frame_start,
-                        "stop": frame_end / file_length,
+                        "stop": normalized[SigMFFile.START_INDEX_KEY] / frame_size + normalized[SigMFFile.LENGTH_INDEX_KEY] / frame_size,
                         "stop_in_samples": frame_end
                     }
 
