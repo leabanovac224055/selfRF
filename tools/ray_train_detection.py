@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 import os
 import warnings
 import pyarrow
@@ -13,6 +14,10 @@ from train_detection import train
 def train_on_ray(config: Detectron2Config):
     warnings.filterwarnings("ignore")
 
+    # Generate a unique timestamp for the job
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    job_name = f"detectron2_training_{timestamp}"
+
     ray.init()
 
     fs = pyarrow.fs.S3FileSystem(
@@ -25,7 +30,7 @@ def train_on_ray(config: Detectron2Config):
         train_loop_per_worker=train,
         train_loop_config=config,
         run_config=RunConfig(
-            name="detectron2_training",
+            name=job_name,
             storage_filesystem=fs,
             storage_path="iqdm-ai/training",
         ),
