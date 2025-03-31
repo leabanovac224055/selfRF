@@ -1,5 +1,6 @@
 import argparse
 import os
+import warnings
 
 from detectron2.utils.logger import setup_logger
 
@@ -20,6 +21,8 @@ INFERENCE = False
 
 def train(config: Detectron2Config):
     """Register datasets with detectron2."""
+    warnings.filterwarnings("ignore")
+
     # Check if root is absolute
     if config.absolute_root:
         config.root = os.path.abspath(config.root)
