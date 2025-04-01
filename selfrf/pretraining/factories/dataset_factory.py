@@ -109,4 +109,8 @@ def get_wideband_metadata(config: BaseConfig) -> WidebandMetadata:
 
 
 def build_dataloader(config: BaseConfig) -> TorchSigDataModule:
-    return DatasetFactory.create_dataset(config)
+    """Build the dataloader based on the dataset type."""
+    if config.dataset in {DatasetType.IQDM_NARROWBAND, DatasetType.IQDM_WIDEBAND}:
+        return IQDMStaticDatasetFactory.create_dataset(config)
+    else:
+        return DatasetFactory.create_dataset(config)
