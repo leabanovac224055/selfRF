@@ -43,7 +43,7 @@ def register_dataset(
         impairment_level=2,
         train=True,
     )
-    metadata["overrides"]["snr_db_min"] = 20
+    metadata["overrides"]["snr_db_min"] = 10
     metadata["overrides"]["signal_bandwidth_min"] = 5_000_000
     metadata["overrides"]["signal_bandwidth_max"] = 13_000_000
     metadata["overrides"]["impairment_level"] = 2
@@ -51,8 +51,8 @@ def register_dataset(
     metadata["overrides"]["fft_size"] = FFT_SIZE
 
     # Set valid duration bounds based on constraints
-    max_duration = 0.00262144  # max allowed for FFT_SIZE=512
-    min_duration = 0.00131072  # min required based on error message
+    max_duration = 0.00065536  # Maximum allowed value per error message
+    min_duration = 0.00016384  # Minimum required value per error message
 
     metadata["overrides"]["signal_duration_max"] = max_duration
     metadata["overrides"]["signal_duration_min"] = min_duration
