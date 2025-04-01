@@ -25,6 +25,8 @@ DEFAULT_TO_FLOAT_32 = False
 DATASET_IQ_SAMPLES = {
     DatasetType.TORCHSIG_WIDEBAND: 262144,
     DatasetType.TORCHSIG_NARROWBAND: 4096,
+    DatasetType.IQDM_WIDEBAND: 262144,
+    DatasetType.IQDM_NARROWBAND: 4096,
 }
 
 
@@ -107,6 +109,12 @@ def add_base_config_args(parser: argparse.ArgumentParser) -> None:
               f'Narrowband={DATASET_IQ_SAMPLES[DatasetType.TORCHSIG_NARROWBAND]}. '
               f'Set this to override the default for your dataset.')
     )
+    # parser.add_argument(
+    #    '--use-static',  # New flag to use static IQDM datasets
+    #    type=lambda x: x.lower() == 'true',
+    #    default=False,
+    #    help="Set to true to load static IQDM datasets (default: False)"
+    # )          # Possible static argument
     parser.add_argument(
         '--spectrogram',
         type=lambda x: x.lower() == 'true',
