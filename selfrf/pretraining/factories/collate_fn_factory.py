@@ -91,7 +91,5 @@ class TwoTowerCollate:
         view2_batch = torch.stack(view2s)
         metadata_batch = torch.stack(metadata_vectors)
         label_batch = torch.tensor(labels).long()
-        print(
-            f"[DEBUG] label shape: {label_batch.shape}, dtype: {label_batch.dtype}")
 
         return ((view1_batch, view2_batch), metadata_batch, label_batch)
