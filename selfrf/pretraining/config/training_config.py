@@ -8,7 +8,6 @@ DEFUALT_ONLINE_LINEAR_EVAL = False
 DEFAULT_SSL_MODEL = SSLModelType.BYOL
 DEFAULT_TRAINING_PATH = './train'
 DEFAULT_NUM_EPOCHS = 100
-SSL_MODEL_MAP = {model_type.value: model_type for model_type in SSLModelType}
 
 
 @dataclass
@@ -28,7 +27,7 @@ def add_training_config_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--ssl-model",
-        type=lambda x: SSL_MODEL_MAP.get(x, SSLModelType.BYOL),
+        type=lambda x: SSLModelType.from_string(x),
         default=SSLModelType.BYOL,
         choices=list(SSLModelType),
         help=f"SSL model to use for pretraining {[model_type.value for model_type in SSLModelType]}"

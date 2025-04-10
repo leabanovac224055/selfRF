@@ -14,18 +14,13 @@ from selfrf.finetuning.detection.detectron2.visualizer import visualize_dataset
 setup_logger()
 
 
-VISUALIZE = False
+VISUALIZE = True
 VISUALIZE_N_SAMPLES = 100
 INFERENCE = False
 
 
 def train(config: Detectron2Config):
     """Register datasets with detectron2."""
-    warnings.filterwarnings("ignore")
-
-    # Check if root is absolute
-    if config.absolute_root:
-        config.root = os.path.abspath(config.root)
 
     register_dataset(config)
 

@@ -79,11 +79,3 @@ def inference_dataset(config: Detectron2Config, threshold: float = 0.7, n_sample
         plt.imsave(
             output_dir / processed_dict["file_name"].split("/")[-1], out_img)
         print(processed_dict["file_name"].split("/")[-1])
-
-
-if __name__ == "__main__":
-    config = Detectron2Config(
-        root="/tmp/datasets"
-    )
-    inference_dataset(config)
-    plt.show()

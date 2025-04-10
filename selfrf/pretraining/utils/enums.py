@@ -187,6 +187,36 @@ class SSLModelType(Enum):
         """Convenience method to check if model requires multi-view collation"""
         return self.collate_type == CollateType.MULTI_VIEW
 
+    @classmethod
+    def from_string(cls, name: str) -> 'SSLModelType':
+        """Convert string to SSLModelType enum.
+
+        Args:
+            name: String name of the SSL model type (case-insensitive)
+
+        Returns:
+            The corresponding SSLModelType enum value
+
+        Raises:
+            ValueError: If the name doesn't match any SSL model type
+        """
+        # Try matching by value (what's stored in the first tuple element)
+        name_lower = name.lower()
+        for model_type in cls:
+            if model_type.value.lower() == name_lower:
+                return model_type
+
+        # If no match found by value, try matching by name
+        try:
+            return cls[name.upper()]
+        except KeyError:
+            # Provide helpful error message with available options
+            valid_types = [f"{t.name} ({t.value})" for t in cls]
+            raise ValueError(
+                f"Unknown SSL model type: '{name}'. "
+                f"Valid types are: {', '.join(valid_types)}"
+            )
+
 
 class DatasetType(Enum):
     TORCHSIG_NARROWBAND = "narrowband"

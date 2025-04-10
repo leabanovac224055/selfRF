@@ -8,7 +8,6 @@ from detectron2.data.datasets import register_coco_instances
 from torchsig.datasets.datamodules import WidebandDataModule
 from torchsig.datasets.default_configs.loader import get_default_yaml_config
 from torchsig.datasets.dataset_utils import to_dataset_metadata
-from torchsig.transforms.dataset_transforms import Spectrogram
 from torchsig.transforms.base_transforms import Compose
 
 from torchsig.transforms.target_transforms import (
@@ -43,7 +42,7 @@ def register_dataset(
         impairment_level=2,
         train=True,
     )
-    metadata["overrides"]["snr_db_min"] = 10
+    metadata["overrides"]["snr_db_min"] = 5
     metadata["overrides"]["signal_bandwidth_min"] = 5_000_000
     metadata["overrides"]["signal_bandwidth_max"] = 13_000_000
     metadata["overrides"]["impairment_level"] = 2
@@ -51,11 +50,11 @@ def register_dataset(
     metadata["overrides"]["fft_size"] = FFT_SIZE
 
     # Set valid duration bounds based on constraints
-    max_duration = 0.00065536  # Maximum allowed value per error message
-    min_duration = 0.00016384  # Minimum required value per error message
-
-    metadata["overrides"]["signal_duration_max"] = max_duration
-    metadata["overrides"]["signal_duration_min"] = min_duration
+    # max_duration = 0.00065536  # Maximum allowed value per error message
+    # min_duration = 0.00016384  # Minimum required value per error message
+#
+    # metadata["overrides"]["signal_duration_max"] = max_duration
+    # metadata["overrides"]["signal_duration_min"] = min_duration
 
     print(json.dumps(metadata, indent=4))
     metadata = to_dataset_metadata(metadata)

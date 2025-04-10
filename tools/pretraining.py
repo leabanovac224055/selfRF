@@ -8,9 +8,6 @@ from selfrf.pretraining.utils.callbacks import ModelAndBackboneCheckpoint
 
 
 def train(config: TrainingConfig):
-    if config.absolute_root:
-        config.root = os.path.abspath(config.root)
-
     datamodule = build_dataloader(config)
     datamodule.prepare_data()
     datamodule.setup()

@@ -1,5 +1,5 @@
 
-from enum import Enum, unique
+from enum import Enum
 from typing import Literal, NamedTuple, Optional
 from dataclasses import fields, dataclass
 import argparse
@@ -94,9 +94,9 @@ class ModelType(Enum):
 
 
 # Default values as constants
-DEFAULT_NOT_ABSOLUTE_ROOT = False
+DEFAULT_ABSOLUTE_ROOT = False
 DEFAULT_MODE = "family_recognition"
-DEFFAULT_NUM_SAMPLES = 5000
+DEFAULT_NUM_SAMPLES = 5000
 
 DEFAULT_FORCE_RECREATION = False
 
@@ -108,17 +108,19 @@ DEFAULT_MAX_ITER = 90_000
 DEFAULT_BASE_LR = 0.0025
 DEFAULT_IMS_PER_BATCH = 8
 DEFAULT_CHECKPOINT_PERIOD = 1000
+DEFAULT_OUTPUT_DIR = "./train/detection"
 
 
 @dataclass
 class Detectron2Config:
     """Configuration for Detectron2 model training."""
     root: str = ""
-    not_absolute_root: bool = DEFAULT_NOT_ABSOLUTE_ROOT
-    num_samples: int = DEFFAULT_NUM_SAMPLES
+    absolute_root: bool = DEFAULT_ABSOLUTE_ROOT
+    num_samples: int = DEFAULT_NUM_SAMPLES
     mode: Literal["detection", "recognition",
                   "family_recognition"] = DEFAULT_MODE
     force_recreation: bool = DEFAULT_FORCE_RECREATION
+    output_dir: str = DEFAULT_OUTPUT_DIR
 
     model_type: ModelType = DEFAULT_MODEL_TYPE
     dataset_path: str = DEFAULT_PATH
@@ -139,15 +141,15 @@ def add_detectron2_config_args(parser: argparse.ArgumentParser) -> None:
         help='Root directory for dataset'
     )
     parser.add_argument(
-        '--not-absolute-root',
+        '--absolute-root',
         action='store_true',
-        default=DEFAULT_NOT_ABSOLUTE_ROOT,
-        help='If true, root is not absolute. '
+        default=DEFAULT_ABSOLUTE_ROOT,
+        help='If true, root is absolute. '
     )
     parser.add_argument(
         '--num-samples',
         type=int,
-        default=DEFFAULT_NUM_SAMPLES,
+        default=DEFAULT_NUM_SAMPLES,
         help='Number of samples to use for training'
     )
     parser.add_argument(
