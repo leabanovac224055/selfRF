@@ -12,6 +12,7 @@ from selfrf.pretraining.utils.enums import DatasetType
 from selfrf.pretraining.factories.collate_fn_factory import build_collate_fn
 from selfrf.pretraining.factories.transform_factory import build_transform, build_target_transform
 from selfrf.data.iqdm.iqdm_modules import IQDMNarrowbandDataModule, IQDMWidebandDataModule
+from selfrf.data import TwoTowerDataModule
 
 
 class DatasetFactory:
@@ -41,7 +42,8 @@ class DatasetFactory:
 class IQDMStaticDatasetFactory:
     _dataset_registry: Dict[DatasetType, Type[TorchSigDataModule]] = {
         DatasetType.IQDM_NARROWBAND: IQDMNarrowbandDataModule,
-        DatasetType.IQDM_WIDEBAND: IQDMWidebandDataModule
+        DatasetType.IQDM_WIDEBAND: IQDMWidebandDataModule,
+        DatasetType.TWO_TOWER_NARROWBAND: TwoTowerDataModule,
     }
 
     @classmethod
@@ -110,7 +112,7 @@ def get_wideband_metadata(config: BaseConfig) -> WidebandMetadata:
 
 def build_dataloader(config: BaseConfig) -> TorchSigDataModule:
     """Build the dataloader based on the dataset type."""
-    if config.dataset in {DatasetType.IQDM_NARROWBAND, DatasetType.IQDM_WIDEBAND}:
+    if config.dataset in {DatasetType.IQDM_NARROWBAND, DatasetType.IQDM_WIDEBAND, DatasetType.TWO_TOWER_NARROWBAND}:
         return IQDMStaticDatasetFactory.create_dataset(config)
     else:
         return DatasetFactory.create_dataset(config)

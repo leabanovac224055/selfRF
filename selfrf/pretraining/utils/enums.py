@@ -194,6 +194,7 @@ class DatasetType(Enum):
     # Add IQDM Datasets
     IQDM_NARROWBAND = "IQDM_NARROWBAND"
     IQDM_WIDEBAND = "IQDM_WIDEBAND"
+    TWO_TOWER_NARROWBAND = "TWO_TOWER_NARROWBAND"
 
 
 class TransformType(Enum):

@@ -8,7 +8,9 @@ DEFUALT_ONLINE_LINEAR_EVAL = False
 DEFAULT_SSL_MODEL = SSLModelType.BYOL
 DEFAULT_TRAINING_PATH = './train'
 DEFAULT_NUM_EPOCHS = 100
+DEFAULT_TWO_TOWER_NUM_EPOCHS = 50
 SSL_MODEL_MAP = {model_type.value: model_type for model_type in SSLModelType}
+DEFAULT_TRAIN_TWO_TOWER = False
 
 
 @dataclass
@@ -17,6 +19,8 @@ class TrainingConfig(BaseConfig):
     ssl_model: SSLModelType = DEFAULT_SSL_MODEL
     training_path: str = DEFAULT_TRAINING_PATH
     num_epochs: int = DEFAULT_NUM_EPOCHS
+    train_two_tower_after_ssl: bool = DEFAULT_TRAIN_TWO_TOWER
+    two_tower_num_epochs: int = DEFAULT_TWO_TOWER_NUM_EPOCHS
 
 
 def add_training_config_args(parser: argparse.ArgumentParser) -> None:
@@ -42,6 +46,18 @@ def add_training_config_args(parser: argparse.ArgumentParser) -> None:
         '--num-epochs',
         type=int,
         default=DEFAULT_NUM_EPOCHS
+    )
+    parser.add_argument(
+        '--train-two-tower-after-ssl',
+        type=lambda x: x.lower() == 'true',
+        default=DEFAULT_TRAIN_TWO_TOWER,
+        help="Train metadata tower and fusion head immediately after SSL training"
+    )
+    parser.add_argument(
+        '--two-tower-num-epochs',
+        type=int,
+        default=DEFAULT_TWO_TOWER_NUM_EPOCHS,
+        help="Number of epochs for two-tower phase"
     )
 
 
@@ -69,6 +85,8 @@ def parse_training_config() -> TrainingConfig:
         ssl_model=args.ssl_model,
         training_path=args.training_path,
         num_epochs=args.num_epochs,
+        train_two_tower_after_ssl=args.train_two_tower_after_ssl,
+        two_tower_num_epochs=args.two_tower_num_epochs,
     )
 
     return training_config

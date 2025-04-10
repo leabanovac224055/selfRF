@@ -27,7 +27,16 @@ DATASET_IQ_SAMPLES = {
     DatasetType.TORCHSIG_NARROWBAND: 4096,
     DatasetType.IQDM_WIDEBAND: 262144,
     DatasetType.IQDM_NARROWBAND: 4096,
+    DatasetType.TWO_TOWER_NARROWBAND: 4096
 }
+
+# 🧠 Metadata tower defaults
+DEFAULT_USE_METADATA_TOWER = False
+DEFAULT_METADATA_INPUT_DIM = 3
+DEFAULT_METADATA_HIDDEN_DIM = 128
+DEFAULT_METADATA_OUTPUT_DIM = 64
+
+DEFAULT_TWO_TOWER_BATCH_SIZE = 16
 
 
 @dataclass
@@ -66,6 +75,14 @@ class BaseConfig:
 
     device: torch.device = DEFAULT_DEVICE
     to_float_32: bool = DEFAULT_TO_FLOAT_32
+
+    # 🔥 Metadata tower config
+    use_metadata_tower: bool = DEFAULT_USE_METADATA_TOWER
+    metadata_input_dim: int = DEFAULT_METADATA_INPUT_DIM
+    metadata_hidden_dim: int = DEFAULT_METADATA_HIDDEN_DIM
+    metadata_output_dim: int = DEFAULT_METADATA_OUTPUT_DIM
+
+    two_tower_batch_size: int = DEFAULT_TWO_TOWER_BATCH_SIZE
 
 
 def add_base_config_args(parser: argparse.ArgumentParser) -> None:
@@ -163,6 +180,38 @@ def add_base_config_args(parser: argparse.ArgumentParser) -> None:
         '--to-float-32',
         type=lambda x: x.lower() == 'true',
         default=DEFAULT_TO_FLOAT_32,
+    )
+
+    # 🧠 Metadata tower CLI args
+    parser.add_argument(
+        '--use-metadata-tower',
+        type=lambda x: x.lower() == 'true',
+        default=DEFAULT_USE_METADATA_TOWER,
+        help="Enable the metadata tower for two-tower models"
+    )
+    parser.add_argument(
+        '--metadata-input-dim',
+        type=int,
+        default=DEFAULT_METADATA_INPUT_DIM,
+        help="Number of input features for the metadata tower"
+    )
+    parser.add_argument(
+        '--metadata-hidden-dim',
+        type=int,
+        default=DEFAULT_METADATA_HIDDEN_DIM,
+        help="Hidden layer size for the metadata tower"
+    )
+    parser.add_argument(
+        '--metadata-output-dim',
+        type=int,
+        default=DEFAULT_METADATA_OUTPUT_DIM,
+        help="Output embedding dimension for the metadata tower"
+    )
+    parser.add_argument(
+        '--two-tower-batch-size',
+        type=int,
+        default=DEFAULT_TWO_TOWER_BATCH_SIZE,
+        help="Batch size for two-tower metadata + fusion training"
     )
 
 

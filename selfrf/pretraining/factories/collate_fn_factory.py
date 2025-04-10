@@ -1,7 +1,7 @@
 import torch
 from typing import Any, Callable, List, Tuple, Union
 
-from selfrf.pretraining.utils.enums import CollateType
+from selfrf.pretraining.utils.enums import CollateType, DatasetType
 from selfrf.pretraining.config import TrainingConfig, EvaluationConfig
 
 
@@ -12,6 +12,11 @@ def build_collate_fn(config: Union[TrainingConfig, EvaluationConfig]) -> Callabl
 
     if isinstance(config, EvaluationConfig):
         return collate_fn_evaluation
+
+    # ✅ Use TwoTowerCollate if metadata tower is active
+    if getattr(config, "use_metadata_tower", False):
+        return TwoTowerCollate()
+
     ssl_model = config.ssl_model
 
     if ssl_model.collate_type == CollateType.MULTI_VIEW:
@@ -71,3 +76,22 @@ class MultiViewCollate:
     if isinstance(config, EvaluationConfig):
         return collate_fn_evaluation
  """
+
+
+class TwoTowerCollate:
+    def __call__(self, batch: List[Any]) -> Tuple[Tuple[torch.Tensor, torch.Tensor], torch.Tensor, torch.Tensor]:
+        """
+        Batch structure:
+        ((view1, view2), metadata_vector, label)
+        """
+        views, metadata_vectors, labels = zip(*batch)
+        view1s, view2s = zip(*views)
+
+        view1_batch = torch.stack(view1s)
+        view2_batch = torch.stack(view2s)
+        metadata_batch = torch.stack(metadata_vectors)
+        label_batch = torch.tensor(labels).long()
+        print(
+            f"[DEBUG] label shape: {label_batch.shape}, dtype: {label_batch.dtype}")
+
+        return ((view1_batch, view2_batch), metadata_batch, label_batch)

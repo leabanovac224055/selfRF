@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Type, Callable, Union
+from typing import Dict, Type, Callable, Union, Optional
 import torch
 
 from selfrf.pretraining.config import TrainingConfig, BaseConfig
@@ -9,7 +9,8 @@ from selfrf.models.iq_models import build_resnet1d
 from selfrf.models.spectrogram_models import build_resnet2d, build_vit
 from selfrf.models.ssl_models import BYOL, DINO, DenseCL
 from selfrf.pretraining.utils.enums import BackboneArchitecture, SSLModelType
-from selfrf.models.iq_models.xcit.xcit1d import XCiT1d
+from selfrf.models.iq_models import XCiT1d
+from selfrf.models.meta_models import MLP, ConcatMLPHead
 
 
 @dataclass(frozen=True)  # makes the dataclass immutable
@@ -30,6 +31,25 @@ class ModelFactory:
         SSLModelType.BYOL: BYOL,
         SSLModelType.DINO: DINO,
         SSLModelType.DENSECL: DenseCL,
+    }
+
+    # Metadata model registry
+    _meta_registry: Dict[str, Callable] = {
+        "mlp": lambda config: MLP(
+            input_dim=config.metadata_input_dim,
+            hidden_dim=config.metadata_hidden_dim,
+            output_dim=config.metadata_output_dim,
+        )
+    }
+
+    # Fusion head registry
+    _fusion_head_registry: Dict[str, Callable] = {
+        "concat_mlp": lambda iq_dim, meta_dim, hidden_dim=256, output_dim=128: ConcatMLPHead(
+            iq_embedding_dim=iq_dim,
+            meta_embedding_dim=meta_dim,
+            hidden_dim=hidden_dim,
+            output_dim=output_dim,
+        )
     }
 
     @classmethod
@@ -87,6 +107,23 @@ class ModelFactory:
             num_classes=len(get_class_list(config))
         )
 
+    @classmethod
+    def create_meta_model(cls, config: BaseConfig) -> Optional[torch.nn.Module]:
+        if not config.use_metadata_tower:
+            return None
+        return cls._meta_registry["mlp"](config)
+
+    @classmethod
+    def create_fusion_head(
+        cls,
+        fusion_type: str,
+        iq_dim: int,
+        meta_dim: int,
+        hidden_dim: int = 256,
+        output_dim: int = 128
+    ) -> torch.nn.Module:
+        return cls._fusion_head_registry[fusion_type](iq_dim, meta_dim, hidden_dim, output_dim)
+
 
 def build_backbone(config: BaseConfig) -> torch.nn.Module:
     return ModelFactory.create_backbone(config)
@@ -94,3 +131,17 @@ def build_backbone(config: BaseConfig) -> torch.nn.Module:
 
 def build_ssl_model(config: TrainingConfig) -> torch.nn.Module:
     return ModelFactory.create_ssl_model(config)
+
+
+def build_meta_model(config: BaseConfig) -> Optional[torch.nn.Module]:
+    return ModelFactory.create_meta_model(config)
+
+
+def build_fusion_head(
+    fusion_type: str,
+    iq_dim: int,
+    meta_dim: int,
+    hidden_dim: int = 256,
+    output_dim: int = 128
+) -> torch.nn.Module:
+    return ModelFactory.create_fusion_head(fusion_type, iq_dim, meta_dim, hidden_dim, output_dim)

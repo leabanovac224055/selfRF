@@ -82,7 +82,10 @@ class BYOL(LightningModule):
                         self.teacher_projection_head, m=momentum)
 
         # get views and targets from batch
-        views, targets = batch[0], batch[1]
+        if isinstance(batch, tuple) and len(batch) == 3:
+            views, _, targets = batch  # ignore metadata
+        else:
+            views, targets = batch
 
         x0 = views[0]
         x1 = views[1]
@@ -127,7 +130,11 @@ class BYOL(LightningModule):
             return
 
         # get views and targets from batch
-        views, targets = batch[0], batch[1]
+        # Compatible with both IQ-only and TwoTower batches
+        if isinstance(batch, tuple) and len(batch) == 3:
+            views, _, targets = batch
+        else:
+            views, targets = batch
 
         x0 = views[0]
 

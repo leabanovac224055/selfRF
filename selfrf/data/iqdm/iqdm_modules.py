@@ -5,7 +5,7 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from torchsig.datasets.datamodules import TorchSigDataModule
 from pytorch_lightning import LightningDataModule
-from selfrf.pretraining.utils.utils import Signal
+from selfrf.pretraining.utils import Signal
 
 
 class TorchSigMetadata:

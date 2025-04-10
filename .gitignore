@@ -3,6 +3,9 @@ datasets/
 train/
 xcit_venv/
 output/
+iqdm_env/
+selfrf/data/iqdm/old/
+selfrf/data/iqdm/test/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

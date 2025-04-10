@@ -145,8 +145,7 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
 
     all_signals = []
     metadata = []
-
-    # Initialize class mapping
+    feature_vectors = []
     class_map = {}
     class_counter = 0
 
@@ -268,11 +267,30 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
                 "upper_freq": normalized_annotation[SigMFFile.FHI_KEY]
             })
 
+            # ✅ Save ORIGINAL (not shifted) metadata for Tower B
+            original_flo = annotation[SigMFFile.FLO_KEY]
+            original_fhi = annotation[SigMFFile.FHI_KEY]
+            original_center_freq = (original_flo + original_fhi) / 2
+            original_bandwidth = abs(original_fhi - original_flo)
+
+            feature_vectors.append({
+                "original_center_freq": original_center_freq,
+                "original_bandwidth": original_bandwidth,
+                "duration": global_sample_count / sample_rate,
+                "class_index": class_index
+            })
+
     # ✅ Convert signals to a NumPy array
     all_signals = np.array(all_signals, dtype=np.complex64)
 
     # ✅ Save the dataset to TorchSig-compatible Zarr format
     save_to_single_zarr(zarr_path, all_signals, metadata, frame_size)
+
+    with open(os.path.join(output_dir, "feature_vectors.json"), "w") as f:
+        json.dump(feature_vectors, f, indent=2)
+
+    print(f"✅ Saved {len(feature_vectors)} feature vectors.")
+    print(f"✅ Saved {len(all_signals)} signals to {zarr_path}")
 
 
 def save_to_single_zarr(zarr_path, all_signals, metadata, frame_size=4096):
