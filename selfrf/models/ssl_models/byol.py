@@ -185,15 +185,13 @@ class BYOL(LightningModule):
             momentum=0.9,
             weight_decay=1e-6,
         )
+        estimated_steps = max(1, int(self.trainer.estimated_stepping_batches))
         scheduler = {
             "scheduler": CosineWarmupScheduler(
                 optimizer=optimizer,
-                warmup_epochs=int(
-                    self.trainer.estimated_stepping_batches
-                    / self.trainer.max_epochs
-                    * 10
-                ),
-                max_epochs=int(self.trainer.estimated_stepping_batches),
+                warmup_epochs=int(estimated_steps /
+                                  self.trainer.max_epochs * 10),
+                max_epochs=estimated_steps,
             ),
             "interval": "step",
         }
