@@ -344,8 +344,8 @@ def save_to_single_zarr(zarr_path, all_signals, metadata, frame_size=4096):
 
 
 # 🚀 Run preprocessing
-input_folder = "/home/sigence/selfRF/datasets/SIGMF"
-output_folder = "/home/sigence/selfRF/datasets/NARROWBAND_ZARR"
+input_folder = "datasets/SIGMF"
+output_folder = "datasets/NARROWBAND_ZARR"
 
 preprocess_narrowband_sigmf_files(
     filepaths=[os.path.join(input_folder, f) for f in os.listdir(

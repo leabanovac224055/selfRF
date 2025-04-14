@@ -6,6 +6,7 @@ output/
 iqdm_env/
 selfrf/data/iqdm/old/
 selfrf/data/iqdm/test/
+.python-version
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
