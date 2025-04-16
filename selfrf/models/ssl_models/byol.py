@@ -189,10 +189,21 @@ class BYOL(LightningModule):
         scheduler = {
             "scheduler": CosineWarmupScheduler(
                 optimizer=optimizer,
-                warmup_epochs=int(estimated_steps /
-                                  self.trainer.max_epochs * 10),
+                warmup_epochs=int(estimated_steps / self.trainer.max_epochs * 10),
                 max_epochs=estimated_steps,
             ),
             "interval": "step",
         }
+
         return [optimizer], [scheduler]
+    
+    def lr_scheduler_step(self, scheduler, optimizer_idx=None, metric=None):
+        # ⚠️ Clamp step to avoid crash at the final iteration
+        try:
+            scheduler.step()
+        except ValueError as e:
+            if "Total step number 0" in str(e):
+                self.print("⚠️ Skipping final lr_scheduler step due to zero steps.")
+            else:
+                raise e
+
