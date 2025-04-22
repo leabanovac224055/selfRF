@@ -34,10 +34,13 @@ def collate_fn_evaluation(batch):
     # Stack tensors into single batch
     tensors = torch.stack(tensors)
 
+    indices = [y[0] for y in targets]
     # Convert targets to tensor
-    targets = torch.tensor(targets)
+    indices = torch.tensor(indices)
+    
+    names = [y[1][0] if isinstance(y[1], tuple) else y[1] for y in targets]
 
-    return tensors, targets
+    return tensors, (indices, names)
 
 
 class SingleViewCollate:
@@ -65,6 +68,9 @@ class MultiViewCollate:
         views, targets = zip(*batch)
         # Unpacks [(view1_1, view1_2), (view2_1, view2_2), ...]
         view1s, view2s = zip(*views)
+        
+        targets = [y[0] for y in targets]
+        
 
         return (
             torch.stack(view1s),  # Batch of first views

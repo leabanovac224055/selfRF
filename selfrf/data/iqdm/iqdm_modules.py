@@ -2,6 +2,7 @@ import os
 import torch
 import zarr
 import numpy as np
+from typing import Optional, List
 from torch.utils.data import Dataset, DataLoader, random_split
 from torchsig.datasets.datamodules import TorchSigDataModule
 from pytorch_lightning import LightningDataModule
@@ -22,20 +23,39 @@ class ZarrNarrowbandDataset(Dataset):
         return self.data.shape[0]
 
     def __getitem__(self, idx):
-        x = self.data[idx]  # (C, T) complex64 or real-valued
+        x = self.data[idx]
         y_dict = self.metadata[str(idx)][0]
-        y = y_dict.get("class_index", 0)
-
-        signal = DatasetSignal(
-            data=x,
-            signals=[y_dict],
-            dataset_metadata=self.dataset_metadata  # Required for TorchSig internals
-        )
-
+        signal = DatasetSignal(data=x, signals=[y_dict],
+                               dataset_metadata=self.dataset_metadata)
+        
         if self.transform:
             signal = self.transform(signal)
             
-            
+        y = y_dict
+
+        if self.target_transform:
+            # 1) start with your single dict in a list
+            metas = [y_dict]
+            results = []  # one entry per transform
+
+            # 2) apply each metadata‐transform in turn
+            for tt in self.target_transform:
+                metas = tt(metas)                       # can return list or single item
+                if not isinstance(metas, list):
+                    metas = [metas]
+
+                # pull out only the fields that tt declares
+                out = [
+                    tuple(md[field] for field in tt.targets_metadata)
+                    for md in metas
+                ]
+                results.append(out)                     # append that per‐signal list
+
+            # 3) flatten: narrowband ⇒ one metadata ⇒ tuple of each transform’s single output
+            #    results is [[(idx,)], [(name,)]]
+            y = tuple(item[0] for item in results)
+            # now y == (class_index, class_name)
+
         return signal.data, y
 
 
