@@ -6,6 +6,7 @@ from selfrf.pretraining.evalutation import EvaluateKNN, VisualizeTSNE
 from selfrf.pretraining.config import EvaluationConfig, parse_evaluation_config, print_config
 from selfrf.pretraining.factories import build_dataloader, build_backbone
 from selfrf.pretraining.utils.utils import get_class_list
+from selfrf.pretraining.utils.enums import DatasetType
 
 
 def convert_idx_to_name(idx: int, config: EvaluationConfig) -> str:
@@ -55,16 +56,24 @@ def evaluate(config: EvaluationConfig):
     val_dataloader = datamodule.train_dataloader()
     with torch.no_grad():  # No gradient needed
 
-        for x, targets in tqdm(val_dataloader):
+        for x, (indices, names) in tqdm(val_dataloader):
             x = x.to(config.device)
 
-            z = model(x)  # Run inference
-            # Move features back to CPU and convert to numpy
+            z = model(x)
+
             representations.extend(z.cpu().numpy())
 
-            # Use .item() to get Python number from tensor
-            labels.extend(
-                [convert_idx_to_name(t.item(), config) for t in targets])
+            if config.dataset in {
+                DatasetType.TORCHSIG_NARROWBAND,
+                DatasetType.TORCHSIG_WIDEBAND
+            }:
+                labels.extend([get_class_list(config)[i.item()] for i in indices])
+            else:
+                # Use real class names (and make sure they're plain strings)
+                safe_names = [
+                    n.item() if isinstance(n, np.ndarray) else str(n) for n in names
+                ]
+                labels.extend(safe_names)
 
     representations = np.array(representations)
     labels = np.array(labels)
@@ -74,10 +83,13 @@ def evaluate(config: EvaluationConfig):
     print("Start t-SNE visualization...")
     model_name = config.model_path.split("/")[-1].split(".")[0]
     plot_path = f"tsne_plot_{model_name}.png"
+    
+    # ✅ Use real class names
+    unique_labels = sorted(set(labels))
     VisualizeTSNE(
         x=representations,
         y=labels,
-        class_list=get_class_list(config),
+        class_list=unique_labels,
     ).visualize(save_path=plot_path)
     print(f"t-SNE plot saved at {plot_path}")
 
