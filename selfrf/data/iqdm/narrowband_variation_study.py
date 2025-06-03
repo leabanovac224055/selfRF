@@ -9,39 +9,6 @@ from sigmf.sigmffile import SigMFFile
 from copy import deepcopy
 
 
-def filter_frequency(samples: np.ndarray[np.complex64], sample_rate: float, f_low: float, f_high: float) -> np.ndarray[np.complex64]:
-    """Filters a signal within a given frequency range."""
-
-    # Perform FFT
-    fft_samples = np.fft.fft(samples)
-
-    # Generate frequency axis
-    freq = np.fft.fftfreq(len(samples), 1/sample_rate)
-
-    # Zero out frequencies outside the desired range
-    if f_low < f_high:
-        fft_samples[(freq < f_low) | (freq > f_high)] = 0
-    else:
-        fft_samples[(freq > f_low) | (freq < f_high)] = 0
-
-    # Perform inverse FFT
-    filtered_samples = np.fft.ifft(fft_samples)
-
-    return filtered_samples.astype(np.complex64)
-
-
-def filter_time(samples: np.ndarray[np.complex64], sample_start: int, sample_count: int) -> np.ndarray[np.complex64]:
-    """ Filters a signal within a given time range. """
-    output = np.zeros_like(samples)
-    output[sample_start:sample_start +
-           sample_count] = samples[sample_start:sample_start + sample_count]
-
-    # 🔍 Debug print before returning
-    print(f"📊 Time Filtered Samples (First 5): {output[:5]}")
-
-    return output
-
-
 def normalize_annotation_to_frame(annotation: dict, sample_start: int, sample_count: int, center_freq: float) -> dict:
     """ Normalize an annotation to fit a frame and shift to baseband. """
     annotation_abs_end = annotation[SigMFFile.START_INDEX_KEY] + \
@@ -70,29 +37,6 @@ def normalize_annotation_to_frame(annotation: dict, sample_start: int, sample_co
           f"  flo={copy[SigMFFile.FLO_KEY]}  fhi={copy[SigMFFile.FHI_KEY]}")
 
     return copy
-
-
-def isolate_signal(samples: np.ndarray[np.complex64], sample_rate: float, sample_start: int, sample_count: int, f_low: float, f_high: float) -> np.ndarray[np.complex64]:
-    """
-    Isolates a signal within a given frequency range from a sample of signals.
-
-    Parameters:
-    samples (np.ndarray[np.complex64]): The input signal samples as a complex64 numpy array.
-    sample_rate (float): The sample rate of the input signal.
-    sample_start (int): The start index of the samples to isolate relative to the input samples.
-    sample_count (int): The sample lenght of the signal.
-    f_low (float): The lower bound of the frequency range.
-    f_high (float): The upper bound of the frequency range.
-
-    Returns:
-    np.ndarray[np.complex64]: The isolated signal samples as a complex64 numpy array.
-    """
-
-    filtered_samples = filter_frequency(
-        samples, sample_rate, f_low, f_high)
-    filtered_samples = filter_time(
-        filtered_samples, sample_start, sample_count)
-    return filtered_samples
 
 
 def get_capture_for_annotation(sigmf_file: SigMFFile, annotation: dict) -> dict:
@@ -150,14 +94,15 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
     class_counter = 0
 
     for filepath in tqdm(filepaths, desc="Processing SigMF datasets"):
-        sigmf_file = SigMFFile(skip_checksum)
+        sigmf_file = SigMFFile(skip_checksum=True)
         # ✅ Load metadata manually
         with open(filepath, 'r', encoding='utf-8') as f:
             metadata_json = json.load(f)
 
         sigmf_file.set_metadata(metadata_json)
         sigmf_file.set_data_file(
-            filepath.replace(".sigmf-meta", ".sigmf-data"))
+            filepath.replace(".sigmf-meta", ".sigmf-data"),
+            skip_checksum=True)
 
         file_length = len(sigmf_file)
         sample_rate = sigmf_file.get_global_field(SigMFFile.SAMPLE_RATE_KEY)
@@ -207,13 +152,7 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
             global_sample_start = max(0, global_sample_start)
             samples = sigmf_file.read_samples(
                 global_sample_start, global_sample_count)
-
-            # ✅ Apply isolation if needed
-            if isolate:
-                samples = isolate_signal(
-                    samples, sample_rate, sample_start=normalized_annotation[
-                        SigMFFile.START_INDEX_KEY], sample_count=normalized_annotation[SigMFFile.LENGTH_INDEX_KEY], f_low=normalized_annotation[SigMFFile.FLO_KEY], f_high=normalized_annotation[SigMFFile.FHI_KEY])
-
+            
             # Skip zero signals
             if np.allclose(samples, 0, atol=1e-10):
                 warnings.warn(
@@ -270,7 +209,8 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
                 "original_center_freq": original_center_freq,
                 "original_bandwidth": original_bandwidth,
                 "duration": global_sample_count / sample_rate,
-                "class_index": class_index
+                "class_index": class_index,
+                "class_name": class_name
             })
 
     # ✅ Convert signals to a NumPy array
@@ -337,7 +277,7 @@ def save_to_single_zarr(zarr_path, all_signals, metadata, frame_size=4096):
 
 
 # 🚀 Run preprocessing
-input_folder = "datasets/SIGMF"
+input_folder = "datasets/VariationStudy"
 output_folder = "datasets/NARROWBAND_ZARR"
 
 preprocess_narrowband_sigmf_files(

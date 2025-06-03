@@ -8,16 +8,17 @@ from torchsig.datasets.datamodules import TorchSigDataModule
 from pytorch_lightning import LightningDataModule
 from torchsig.signals.signal_types import DatasetSignal
 from torchsig.datasets.dataset_metadata import NarrowbandMetadata
+from selfrf.pretraining.factories.collate_fn_factory import build_collate_fn
+
 
 
 class ZarrNarrowbandDataset(Dataset):
-    def __init__(self, zarr_path, transform=None, target_transform=None, dataset_metadata=None, eval_mode=False):
+    def __init__(self, zarr_path, transform=None, target_transform=None, dataset_metadata=None):
         self.data = zarr.open_array(zarr_path, mode='r')
         self.metadata = self.data.attrs.asdict()
         self.transform = transform
         self.target_transform = target_transform
         self.dataset_metadata = dataset_metadata  # Needed by DatasetSignal
-        self.eval_mode = eval_mode  # 🔁 Switch between training and evaluation
 
     def __len__(self):
         return self.data.shape[0]
@@ -60,7 +61,7 @@ class ZarrNarrowbandDataset(Dataset):
 
 
 class IQDMNarrowbandDataModule(LightningDataModule):
-    def __init__(self, config, root, batch_size, num_workers, transforms, target_transforms, collate_fn):
+    def __init__(self, config, root, batch_size, num_workers, transforms, target_transforms):
         super().__init__()
         self.config = config
         self.zarr_path = os.path.join(root, "NARROWBAND_ZARR", "data.zarr")
@@ -68,7 +69,9 @@ class IQDMNarrowbandDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.transforms = transforms
         self.target_transforms = target_transforms
-        self.collate_fn = collate_fn
+        
+        self.collate_fn_train = build_collate_fn(config, is_val=False)
+        self.collate_fn_val = build_collate_fn(config, is_val=True)
 
         # Dummy metadata for DatasetSignal (must match your dataset format)
         self.dataset_metadata = NarrowbandMetadata(
@@ -78,21 +81,19 @@ class IQDMNarrowbandDataModule(LightningDataModule):
         )
 
     def setup(self, stage=None):
-        eval_mode = stage in ("validate", "test")
-
         full_dataset = ZarrNarrowbandDataset(
             zarr_path=self.zarr_path,
             transform=self.transforms,
             target_transform=self.target_transforms,
-            dataset_metadata=self.dataset_metadata,
-            eval_mode=eval_mode
+            dataset_metadata=self.dataset_metadata
         )
 
-        if eval_mode:
-            self.train_dataset = self.val_dataset = full_dataset
-        else:
+        # Check if we already split the dataset
+        if not hasattr(self, 'train_dataset') or not hasattr(self, 'val_dataset'):
             val_size = int(0.1 * len(full_dataset))
             train_size = len(full_dataset) - val_size
+
+            # Split the dataset with a fixed seed for reproducibility
             self.train_dataset, self.val_dataset = random_split(
                 full_dataset,
                 [train_size, val_size],
@@ -105,7 +106,7 @@ class IQDMNarrowbandDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=True,
             num_workers=self.num_workers,
-            collate_fn=self.collate_fn
+            collate_fn=self.collate_fn_train   # 🟢 Training: both views
         )
 
     def val_dataloader(self):
@@ -114,7 +115,7 @@ class IQDMNarrowbandDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
-            collate_fn=self.collate_fn
+            collate_fn=self.collate_fn_val  # 🟢 Validation: first view if online_linear_eval
         )
 
     def prepare_data(self):

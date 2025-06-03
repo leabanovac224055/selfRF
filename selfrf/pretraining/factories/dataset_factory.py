@@ -12,7 +12,7 @@ from selfrf.pretraining.utils.enums import DatasetType
 from selfrf.pretraining.factories.collate_fn_factory import build_collate_fn
 from selfrf.pretraining.factories.transform_factory import build_transform, build_target_transform
 from selfrf.data.iqdm.iqdm_modules import IQDMNarrowbandDataModule, IQDMWidebandDataModule
-from selfrf.data import TwoTowerDataModule
+from selfrf.data.meta.two_tower_dataset import TwoTowerDataModule
 
 
 class DatasetFactory:
@@ -49,16 +49,16 @@ class IQDMStaticDatasetFactory:
     @classmethod
     def create_dataset(cls, config: BaseConfig) -> TorchSigDataModule:
         dataset_class = cls._dataset_registry[config.dataset]
-        return dataset_class(
+        kwargs = dict(
             config=config,
             root=config.root,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
             transforms=build_transform(config),
             target_transforms=build_target_transform(config),
-            collate_fn=build_collate_fn(config),
         )
 
+        return dataset_class(**kwargs)
 
 def get_dataset_metadata(config: BaseConfig) -> DatasetMetadata:
     if config.dataset == DatasetType.TORCHSIG_NARROWBAND:

@@ -7,7 +7,7 @@ from selfrf.pretraining.config.evaluation_config import EvaluationConfig
 from selfrf.pretraining.utils.utils import get_class_list
 from selfrf.models.iq_models import build_resnet1d
 from selfrf.models.spectrogram_models import build_resnet2d, build_vit
-from selfrf.models.ssl_models import BYOL, DINO, DenseCL
+from selfrf.models.ssl_models import BYOL, DINO, DenseCL, MoCoV3
 from selfrf.pretraining.utils.enums import BackboneArchitecture, SSLModelType
 from selfrf.models.iq_models import XCiT1d
 from selfrf.models.meta_models import MLP, ConcatMLPHead
@@ -31,6 +31,7 @@ class ModelFactory:
         SSLModelType.BYOL: BYOL,
         SSLModelType.DINO: DINO,
         SSLModelType.DENSECL: DenseCL,
+        SSLModelType.MOCOV3: MoCoV3
     }
 
     # Metadata model registry
@@ -99,7 +100,21 @@ class ModelFactory:
         """Create SSL model from config"""
         backbone = cls.create_backbone(config)
         ssl_type = SSLModelType(config.ssl_model)
+        
         ssl_model = cls._ssl_registry[ssl_type]
+        
+        # Handle MoCo model
+        if ssl_type == SSLModelType.MOCOV3:
+            return ssl_model(
+                num_classes=len(get_class_list(config)),
+                batch_size_per_device=config.batch_size,
+                backbone=backbone,
+                dim=config.projection_dim,
+                mlp_dim=config.mlp_dim,
+                T=config.temperature,
+                use_online_linear_eval=config.online_linear_eval,
+            )
+
         return ssl_model(
             backbone=backbone,
             batch_size_per_device=config.batch_size,

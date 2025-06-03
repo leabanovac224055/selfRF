@@ -31,6 +31,7 @@ class ConcatMLPHead(nn.Module):
         Returns:
             fused embedding: Tensor of shape (B, output_dim)
         """
+        
         x = torch.cat([iq_embedding, meta_embedding], dim=1)
         return self.mlp(x)
 

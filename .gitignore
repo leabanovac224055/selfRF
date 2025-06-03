@@ -7,6 +7,9 @@ iqdm_env/
 selfrf/data/iqdm/old/
 selfrf/data/iqdm/test/
 .python-version
+trial_*
+moco_tuning*
+tsne_plot*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

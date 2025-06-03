@@ -4,7 +4,7 @@ from typing import Optional
 
 import torch
 
-from selfrf.pretraining.utils.enums import BackboneProvider, BackboneType, DatasetType
+from selfrf.pretraining.utils.enums import BackboneProvider, BackboneType, DatasetType, MetadataModelType
 
 # Default values as constants
 DEFAULT_DATASET = DatasetType.TORCHSIG_NARROWBAND
@@ -35,8 +35,8 @@ DEFAULT_USE_METADATA_TOWER = False
 DEFAULT_METADATA_INPUT_DIM = 3
 DEFAULT_METADATA_HIDDEN_DIM = 128
 DEFAULT_METADATA_OUTPUT_DIM = 64
-
-DEFAULT_TWO_TOWER_BATCH_SIZE = 16
+DEFAULT_METADATA_MODEL = MetadataModelType.MLP
+DEFAULT_METADATA_TEMPERATURE = 0.5
 
 
 @dataclass
@@ -81,8 +81,8 @@ class BaseConfig:
     metadata_input_dim: int = DEFAULT_METADATA_INPUT_DIM
     metadata_hidden_dim: int = DEFAULT_METADATA_HIDDEN_DIM
     metadata_output_dim: int = DEFAULT_METADATA_OUTPUT_DIM
-
-    two_tower_batch_size: int = DEFAULT_TWO_TOWER_BATCH_SIZE
+    metadata_model: MetadataModelType = DEFAULT_METADATA_MODEL
+    metadata_temperature: float = DEFAULT_METADATA_TEMPERATURE
 
 
 def add_base_config_args(parser: argparse.ArgumentParser) -> None:
@@ -208,10 +208,11 @@ def add_base_config_args(parser: argparse.ArgumentParser) -> None:
         help="Output embedding dimension for the metadata tower"
     )
     parser.add_argument(
-        '--two-tower-batch-size',
-        type=int,
-        default=DEFAULT_TWO_TOWER_BATCH_SIZE,
-        help="Batch size for two-tower metadata + fusion training"
+        '--metadata-model',
+        type=lambda x: MetadataModelType[x.upper()],
+        choices=list(MetadataModelType),
+        default=DEFAULT_METADATA_MODEL,
+        help="Model type for the metadata tower",
     )
 
 

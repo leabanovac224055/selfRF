@@ -5,9 +5,8 @@ from .base_config import BaseConfig, add_base_config_args, parse_base_config
 
 DEFAULT_TSNE = True
 DEFAULT_KNN = True
-DEFAULT_N_NEIGHBORS = 10
+DEFAULT_N_NEIGHBORS = 50
 DEFAULT_EVALUATION_PATH = './evaluation'
-
 
 @dataclass
 class EvaluationConfig(BaseConfig):
@@ -45,7 +44,6 @@ def add_evaluation_config_args(parser: argparse.ArgumentParser) -> None:
         type=str,
         default=DEFAULT_EVALUATION_PATH,
     )
-
 
 def parse_evaluation_config() -> EvaluationConfig:
     """Parse command line arguments into an EvaluationConfig object.

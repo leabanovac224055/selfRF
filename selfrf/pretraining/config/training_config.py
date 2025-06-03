@@ -1,7 +1,7 @@
 import argparse
 from dataclasses import dataclass
 
-from selfrf.pretraining.utils.enums import SSLModelType
+from selfrf.pretraining.utils.enums import SSLModelType, MetadataModelType, TrainingStage
 from .base_config import BaseConfig, add_base_config_args, parse_base_config
 
 DEFUALT_ONLINE_LINEAR_EVAL = False
@@ -12,6 +12,16 @@ DEFAULT_TWO_TOWER_NUM_EPOCHS = 50
 SSL_MODEL_MAP = {model_type.value: model_type for model_type in SSLModelType}
 DEFAULT_TRAIN_TWO_TOWER = False
 
+DEFAULT_TRAINING_STAGE = TrainingStage.SSL
+
+# MoCo-v3 specific parameters
+DEFAULT_PROJECTION_DIM = 256
+DEFAULT_MLP_DIM = 4096
+DEFAULT_TEMPERATURE = 1.0
+DEFAULT_MOMENTUM = 0.999
+DEFAULT_QUEUE_SIZE = 65536
+
+DEFAULT_METADATA_MODEL = MetadataModelType.MLP
 
 @dataclass
 class TrainingConfig(BaseConfig):
@@ -19,8 +29,18 @@ class TrainingConfig(BaseConfig):
     ssl_model: SSLModelType = DEFAULT_SSL_MODEL
     training_path: str = DEFAULT_TRAINING_PATH
     num_epochs: int = DEFAULT_NUM_EPOCHS
-    train_two_tower_after_ssl: bool = DEFAULT_TRAIN_TWO_TOWER
     two_tower_num_epochs: int = DEFAULT_TWO_TOWER_NUM_EPOCHS
+
+    training_stage: TrainingStage = DEFAULT_TRAINING_STAGE
+    
+    # MoCo-v3 specific parameters 
+    projection_dim: int = DEFAULT_PROJECTION_DIM
+    mlp_dim: int = DEFAULT_MLP_DIM
+    temperature: float = DEFAULT_TEMPERATURE
+    momentum: float = DEFAULT_MOMENTUM
+    queue_size: int = DEFAULT_QUEUE_SIZE
+    
+    metadata_model: MetadataModelType = DEFAULT_METADATA_MODEL
 
 
 def add_training_config_args(parser: argparse.ArgumentParser) -> None:
@@ -32,7 +52,7 @@ def add_training_config_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--ssl-model",
-        type=lambda x: SSL_MODEL_MAP.get(x, SSLModelType.BYOL),
+        type=lambda x: SSLModelType.from_string(x),
         default=SSLModelType.BYOL,
         choices=list(SSLModelType),
         help=f"SSL model to use for pretraining {[model_type.value for model_type in SSLModelType]}"
@@ -48,16 +68,17 @@ def add_training_config_args(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_NUM_EPOCHS
     )
     parser.add_argument(
-        '--train-two-tower-after-ssl',
-        type=lambda x: x.lower() == 'true',
-        default=DEFAULT_TRAIN_TWO_TOWER,
-        help="Train metadata tower and fusion head immediately after SSL training"
-    )
-    parser.add_argument(
         '--two-tower-num-epochs',
         type=int,
         default=DEFAULT_TWO_TOWER_NUM_EPOCHS,
         help="Number of epochs for two-tower phase"
+    )
+    parser.add_argument(
+        '--training-stage',
+        type=lambda x: TrainingStage(x.lower()),
+        choices=list(TrainingStage),
+        default=DEFAULT_TRAINING_STAGE,
+        help="Specify the training stage: ssl, metadata, or fusion"
     )
 
 
@@ -85,8 +106,7 @@ def parse_training_config() -> TrainingConfig:
         ssl_model=args.ssl_model,
         training_path=args.training_path,
         num_epochs=args.num_epochs,
-        train_two_tower_after_ssl=args.train_two_tower_after_ssl,
-        two_tower_num_epochs=args.two_tower_num_epochs,
+        two_tower_num_epochs=args.two_tower_num_epochs
     )
 
     return training_config

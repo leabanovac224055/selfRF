@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 from selfrf.pretraining.evalutation import EvaluateKNN, VisualizeTSNE
 from selfrf.pretraining.config import EvaluationConfig, parse_evaluation_config, print_config
-from selfrf.pretraining.factories import build_dataloader, build_backbone
+from selfrf.pretraining.factories import build_dataloader, build_backbone, build_meta_model
 from selfrf.pretraining.utils.utils import get_class_list
 from selfrf.pretraining.utils.enums import DatasetType
 
@@ -14,18 +14,16 @@ def convert_idx_to_name(idx: int, config: EvaluationConfig) -> str:
     return get_class_list(config)[idx]
 
 
-def evaluate(config: EvaluationConfig):
+def evaluate_metadata_model(config: EvaluationConfig):
 
     if not config.model_path:
         raise ValueError("model_path is required for evaluation")
 
-    datamodule = build_dataloader(config)
-
-    model = build_backbone(config)
+    # Use the metadata model factory to load the correct model
+    model = build_meta_model(config)
 
     if config.model_path.lower() == "random" or not config.model_path:
         print("Using randomly initialized weights")
-        # Model already has random weights from initialization
     else:
         print(f"Loading weights from {config.model_path}")
         checkpoint = torch.load(
@@ -49,27 +47,43 @@ def evaluate(config: EvaluationConfig):
     model = model.to(config.device)
     model.eval()
 
+    # Prepare data
+    datamodule = build_dataloader(config)
+    datamodule.setup("validate")
+    val_dataloader = datamodule.val_dataloader()
+
     representations = []
     labels = []
 
-    datamodule.setup("fit")
-    val_dataloader = datamodule.train_dataloader()
-    with torch.no_grad():  # No gradient needed
+    with torch.no_grad():
+        for batch in tqdm(val_dataloader):
+            # Handle metadata input separately
+            if config.mode == "metadata":
+                x, y = batch
+                x = x.to(config.device)
 
-        for x, (indices, names) in tqdm(val_dataloader):
-            x = x.to(config.device)
+                # Forward pass
+                z = model(x)
+            else:
+                x, (indices, names) = batch
+                x = x.to(config.device)
 
-            z = model(x)
+                # Forward pass
+                z = model(x)
 
+            # Collect representations
             representations.extend(z.cpu().numpy())
 
+            # Extract labels
             if config.dataset in {
                 DatasetType.TORCHSIG_NARROWBAND,
-                DatasetType.TORCHSIG_WIDEBAND
+                DatasetType.TORCHSIG_WIDEBAND,
+                DatasetType.TWO_TOWER_NARROWBAND
             }:
-                labels.extend([get_class_list(config)[i.item()] for i in indices])
+                # Use the class list for label conversion
+                labels.extend([get_class_list(config)[i.item()] for i in y])
             else:
-                # Use real class names (and make sure they're plain strings)
+                # Use plain strings as labels
                 safe_names = [
                     n.item() if isinstance(n, np.ndarray) else str(n) for n in names
                 ]
@@ -77,13 +91,13 @@ def evaluate(config: EvaluationConfig):
 
     representations = np.array(representations)
     labels = np.array(labels)
-    print(
-        f"Finished calculating representations (shape {representations.shape})")
+
+    print(f"Finished calculating representations (shape {representations.shape})")
 
     print("Start t-SNE visualization...")
     model_name = config.model_path.split("/")[-1].split(".")[0]
     plot_path = f"tsne_plot_{model_name}.png"
-    
+
     # ✅ Use real class names
     unique_labels = sorted(set(labels))
     VisualizeTSNE(
@@ -101,4 +115,4 @@ def evaluate(config: EvaluationConfig):
 if __name__ == "__main__":
     config = parse_evaluation_config()
     print_config(config)
-    evaluate(config)
+    evaluate_metadata_model(config)

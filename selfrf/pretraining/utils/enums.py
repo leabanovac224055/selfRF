@@ -176,6 +176,7 @@ class SSLModelType(Enum):
     BYOL = ("byol", CollateType.MULTI_VIEW)
     DINO = ("dino", CollateType.MULTI_VIEW)
     DENSECL = ("densecl", CollateType.MULTI_VIEW)
+    MOCOV3 = ("moco_v3", CollateType.MULTI_VIEW)
     # MAE = ("mae", CollateType.SINGLE_VIEW)  # Uncomment when implementing MAE
 
     def __init__(self, value, collate_type):
@@ -186,6 +187,36 @@ class SSLModelType(Enum):
     def requires_multi_view(self):
         """Convenience method to check if model requires multi-view collation"""
         return self.collate_type == CollateType.MULTI_VIEW
+    
+    @classmethod
+    def from_string(cls, name: str) -> 'SSLModelType':
+        """Convert string to SSLModelType enum.
+
+        Args:
+            name: String name of the SSL model type (case-insensitive)
+
+        Returns:
+            The corresponding SSLModelType enum value
+
+        Raises:
+            ValueError: If the name doesn't match any SSL model type
+        """
+        # Try matching by value (what's stored in the first tuple element)
+        name_lower = name.lower()
+        for model_type in cls:
+            if model_type.value.lower() == name_lower:
+                return model_type
+
+        # If no match found by value, try matching by name
+        try:
+            return cls[name.upper()]
+        except KeyError:
+            # Provide helpful error message with available options
+            valid_types = [f"{t.name} ({t.value})" for t in cls]
+            raise ValueError(
+                f"Unknown SSL model type: '{name}'. "
+                f"Valid types are: {', '.join(valid_types)}"
+            )
 
 
 class DatasetType(Enum):
@@ -200,3 +231,18 @@ class DatasetType(Enum):
 class TransformType(Enum):
     SPECTROGRAM = "spectrogram"
     IQ = "iq"
+
+class MetadataModelType(Enum):
+    """Different metadata model types."""
+    MLP = "mlp"
+
+    def __str__(self) -> str:
+        return self.name
+    
+class TrainingStage(Enum):
+    SSL = "ssl"
+    METADATA = "metadata"
+    FUSION = "fusion"
+
+    def __str__(self) -> str:
+        return self.value

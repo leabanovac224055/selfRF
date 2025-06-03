@@ -49,6 +49,10 @@ class BYOL(LightningModule):
                 num_classes=num_classes)
 
     def forward(self, x: Tensor) -> Tensor:
+        if isinstance(x, tuple):
+            print(f"[BYOL DEBUG] ❌ Received tuple instead of Tensor: {type(x)}")
+            print(f"Contents: {[type(e) for e in x]}")
+            raise TypeError("Expected Tensor input, got tuple. Likely collate_fn issue.")
         return self.backbone(x)
 
     def forward_student(self, x: Tensor) -> Tuple[Tensor, Tensor]:
@@ -123,29 +127,26 @@ class BYOL(LightningModule):
                  prog_bar=True, batch_size=len(targets))
         return total_loss
 
-    def validation_step(
-            self, batch: Tuple[Tensor, Tensor, List[str]], batch_idx: int) -> Tensor:
-
+    def validation_step(self, batch: Tuple, batch_idx: int) -> Tensor:
         if not self.use_online_linear_eval:
             return
 
-        # get views and targets from batch
-        # Compatible with both IQ-only and TwoTower batches
+        # Unpack batch depending on structure
         if isinstance(batch, tuple) and len(batch) == 3:
-            views, _, targets = batch
+            x0, _, targets = batch  # x0 = view1 batch, second element is metadata, ignore it
         else:
-            views, targets = batch
+            x0, targets = batch  # for IQDMNarrowband or classic BYOL
 
-        x0 = views[0]
-
+        # Forward only x0 through backbone
         features = self.forward(x0).flatten(start_dim=1)
 
+        # Online linear evaluation
         cls_loss, cls_log = self.online_classifier.validation_step(
             (features.detach(), targets), batch_idx
         )
-        self.log_dict(cls_log, prog_bar=True, sync_dist=True,
-                      batch_size=len(targets))
+        self.log_dict(cls_log, prog_bar=True, sync_dist=True, batch_size=len(targets))
         return cls_loss
+
 
     def configure_optimizers(self):
         # Don't use weight decay for batch norm, bias parameters, and classification
