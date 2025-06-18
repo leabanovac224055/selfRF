@@ -46,49 +46,61 @@ class TwoTowerDataset(Dataset):
         return len(self.zarr_data)
 
     def __getitem__(self, idx):
-        # ----- Load IQ signal -----
         iq = self.zarr_data[idx]
-        y_dict = self.attrs[str(idx)][0]  # ✅ Match your current format
-        
-        # Load metadata vector excluding class_index (and class_name if needed)
+        y_dict = self.attrs[str(idx)][0]
+
+        start_in_samples = y_dict.get("start_in_samples", 0)
+        duration_in_samples = y_dict.get("duration_in_samples", iq.shape[-1])
+        end_in_samples = start_in_samples + duration_in_samples
+
+        mask = torch.zeros(iq.shape[-1], dtype=torch.float32)
+        mask[start_in_samples:end_in_samples] = 1.0
+
+        signal = DatasetSignal(data=iq, signals=[y_dict], dataset_metadata=self.dataset_metadata)
+        signal.time_mask = mask
+
         vector_dict = self.feature_vectors[idx]
         metadata_vector = []
-
-        # Iterate through the keys and collect metadata values
         for k in vector_dict:
             if k not in ["class_index", "class_name"]:
                 value = vector_dict[k]
-                # Flatten if the value is a list of tensors
                 if isinstance(value, list):
-                    # Flatten the list of tensors into a single tensor
                     value = torch.cat([v.flatten() for v in value], dim=0)
                 else:
                     value = torch.tensor([value], dtype=torch.float32)
                 metadata_vector.append(value)
-
-        # Concatenate all parts into a single tensor
         metadata_vector = torch.cat(metadata_vector, dim=0)
 
-        # Control the inclusion of class_name based on the flag
         if self.load_class_name:
             label = (vector_dict.get("class_index", 0), vector_dict.get("class_name", "unknown"))
         else:
             label = vector_dict.get("class_index", 0)
-            
+
+        iq_tensor = torch.tensor(iq, dtype=torch.float32)
+        mask_tensor = mask
+
         if self.training_stage == TrainingStage.METADATA:
             return metadata_vector, label
 
-        signal = DatasetSignal(data=iq, signals=[y_dict], dataset_metadata=self.dataset_metadata)
-
-        # Apply transformations
         if self.transform:
-            signal = self.transform(signal)
-            view1, view2 = signal.data
+            output = self.transform(signal)
+            if isinstance(output, DatasetSignal):
+                iq_tensor = torch.tensor(output.data, dtype=torch.float32)
+                mask_tensor = output.time_mask
+                view1 = (iq_tensor, mask_tensor)
+                view2 = (iq_tensor, mask_tensor)
+            elif isinstance(output, tuple) and len(output) == 2:
+                view1, view2 = output
+            else:
+                raise ValueError(f"Unexpected transform output type: {type(output)}")
         else:
-            view1 = view2 = torch.tensor(iq, dtype=torch.float32)
+            iq_tensor = torch.tensor(iq, dtype=torch.float32)
+            mask_tensor = mask
+            view1 = (iq_tensor, mask_tensor)
+            view2 = (iq_tensor, mask_tensor)
 
         return ((view1, view2), metadata_vector, label)
-
+    
 
 class TwoTowerDataModule(LightningDataModule):
     def __init__(

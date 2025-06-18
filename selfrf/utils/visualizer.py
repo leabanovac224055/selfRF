@@ -167,15 +167,15 @@ def visualize_batch(batch, mode='spectrogram', max_samples=None, **kwargs):
         List of figures, one per sample
     """
     views = batch[0]
-    views1, views2 = views[0], views[1]
+    (view1_iq, view1_mask), (view2_iq, view2_mask) = views
     labels = batch[1]
 
-    batch_size = len(views1)
+    batch_size = len(view1_iq)
     if max_samples is not None:
         batch_size = min(batch_size, max_samples)
 
     figures = []
     for i in range(batch_size):
         fig = visualize_single_sample(
-            views1, views2, sample_idx=i, mode=mode, class_id=labels[i], **kwargs)
+            view1_iq, view2_iq, sample_idx=i, mode=mode, class_id=labels[i], **kwargs)
         figures.append(fig)

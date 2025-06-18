@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 import numpy as np
 from torch import Tensor
 from torchsig.signals import DatasetSignal
@@ -11,10 +11,45 @@ from torchsig.transforms.dataset_transforms import (
     CutOut,
     RandomMagRescale,
 )
+from torchsig.utils.random import Seedable
 from ..extra import torchsig_legacy_transforms as T_LEGACY
 from ..extra import MultiViewTransform, RandomAWGN
 
 
+class RandomTimeShiftWithMask(Transform, Seedable):
+    def __init__(self, shift_range):
+        super().__init__()
+        self.shift_range = shift_range
+        self.children = []  # required for Seedable mechanics
+
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        shift_amount = np.random.randint(self.shift_range[0], self.shift_range[1] + 1)
+
+        signal.data = np.roll(signal.data, shift_amount, axis=-1)
+
+        if hasattr(signal, "time_mask"):
+            signal.time_mask = np.roll(signal.time_mask, shift_amount)
+
+        return signal
+    
+
+class TimeReversalWithMask(Transform, Seedable):
+    def __init__(self, allow_spectral_inversion=False):
+        super().__init__()
+        self.allow_spectral_inversion = allow_spectral_inversion
+        self.children = []  # needed for Seedable mechanics
+
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        # Reverse time axis for IQ data
+        signal.data = signal.data[..., ::-1]
+
+        # Reverse mask if present
+        if hasattr(signal, "time_mask"):
+            signal.time_mask = signal.time_mask[::-1]
+
+        return signal
+    
+    
 class MoCoView1Transform(Transform):
     """
     Strong Augmentation - More aggressive transformations for contrastive learning.
@@ -39,9 +74,9 @@ class MoCoView1Transform(Transform):
 
         # Compose the list of strong transformations
         transforms = [
-            T_LEGACY.RandomTimeShift((-max_time_shift, max_time_shift)),
+            RandomTimeShiftWithMask((-max_time_shift, max_time_shift)),
             T_LEGACY.RandomFrequencyShift((-max_freq_shift, max_freq_shift)),
-            RandomApply(TimeReversal(allow_spectral_inversion=False), tr_prob),
+            RandomApply(TimeReversalWithMask(allow_spectral_inversion=False), tr_prob),
             RandomApply(SpectralInversionDatasetTransform(), si_prob),
             CutOut(duration=cutout_duration, cut_type=["zeros"]),
             RandomMagRescale(scale=(min_amplitude_scale, max_amplitude_scale)),
@@ -52,8 +87,9 @@ class MoCoView1Transform(Transform):
 
         self.transform = Compose(transforms=transforms)
 
-    def __call__(self, signal: DatasetSignal) -> Tensor:
-        return self.transform(signal)
+    def __call__(self, signal: DatasetSignal) -> Tuple[Tensor, Tensor]:
+        signal = self.transform(signal)
+        return signal.data, signal.time_mask
 
 
 class MoCoView2Transform(Transform):
@@ -80,9 +116,9 @@ class MoCoView2Transform(Transform):
 
         # Compose the list of weak transformations
         transforms = [
-            T_LEGACY.RandomTimeShift((-max_time_shift, max_time_shift)),
+            RandomTimeShiftWithMask((-max_time_shift, max_time_shift)),
             T_LEGACY.RandomFrequencyShift((-max_freq_shift, max_freq_shift)),
-            RandomApply(TimeReversal(allow_spectral_inversion=False), tr_prob),
+            RandomApply(TimeReversalWithMask(allow_spectral_inversion=False), tr_prob),
             RandomApply(SpectralInversionDatasetTransform(), si_prob),
             CutOut(duration=cutout_duration, cut_type=["zeros"]),
             RandomMagRescale(scale=(min_amplitude_scale, max_amplitude_scale)),
@@ -93,8 +129,9 @@ class MoCoView2Transform(Transform):
 
         self.transform = Compose(transforms=transforms)
 
-    def __call__(self, signal: DatasetSignal) -> Tensor:
-        return self.transform(signal)
+    def __call__(self, signal: DatasetSignal) -> Tuple[Tensor, Tensor]:
+        signal = self.transform(signal)
+        return signal.data, signal.time_mask
 
 
 class MoCoTransform(MultiViewTransform):

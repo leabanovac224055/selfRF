@@ -39,4 +39,3 @@ class MLP(nn.Module):
         # Normalize to unit sphere for cosine similarity
         x = F.normalize(x, p=2, dim=1)
         return x
-

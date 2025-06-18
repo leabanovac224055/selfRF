@@ -9,7 +9,7 @@ selfrf/data/iqdm/test/
 .python-version
 trial_*
 moco_tuning*
-tsne_plot*
+tsne_*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

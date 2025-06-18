@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 from selfrf.pretraining.evalutation import EvaluateKNN, VisualizeTSNE
 from selfrf.pretraining.config import EvaluationConfig, parse_evaluation_config, print_config
-from selfrf.pretraining.factories import build_dataloader, build_backbone, build_meta_model
+from selfrf.pretraining.factories import build_dataloader, build_backbone
 from selfrf.pretraining.utils.utils import get_class_list
 from selfrf.pretraining.utils.enums import DatasetType
 
@@ -14,13 +14,13 @@ def convert_idx_to_name(idx: int, config: EvaluationConfig) -> str:
     return get_class_list(config)[idx]
 
 
-def evaluate_metadata_model(config: EvaluationConfig):
+def evaluate (config: EvaluationConfig):
 
     if not config.model_path:
         raise ValueError("model_path is required for evaluation")
 
     # Use the metadata model factory to load the correct model
-    model = build_meta_model(config)
+    model = build_backbone(config)
 
     if config.model_path.lower() == "random" or not config.model_path:
         print("Using randomly initialized weights")
@@ -57,33 +57,29 @@ def evaluate_metadata_model(config: EvaluationConfig):
 
     with torch.no_grad():
         for batch in tqdm(val_dataloader):
-            # Handle metadata input separately
-            if config.mode == "metadata":
-                x, y = batch
-                x = x.to(config.device)
+            
+            x, (indices, names) = batch
+            x = x.to(config.device)
 
-                # Forward pass
-                z = model(x)
+            # Forward pass returns tuple
+            cls_token, pooled_token = model(x)
+
+            if pooled_token is not None:
+                z = torch.cat([cls_token, pooled_token], dim=-1)
             else:
-                x, (indices, names) = batch
-                x = x.to(config.device)
-
-                # Forward pass
-                z = model(x)
+                z = cls_token  # <-- ResNet path
 
             # Collect representations
             representations.extend(z.cpu().numpy())
 
-            # Extract labels
+            # Extract labels (unchanged)
             if config.dataset in {
                 DatasetType.TORCHSIG_NARROWBAND,
                 DatasetType.TORCHSIG_WIDEBAND,
                 DatasetType.TWO_TOWER_NARROWBAND
             }:
-                # Use the class list for label conversion
-                labels.extend([get_class_list(config)[i.item()] for i in y])
+                labels.extend([get_class_list(config)[i.item()] for i in indices])
             else:
-                # Use plain strings as labels
                 safe_names = [
                     n.item() if isinstance(n, np.ndarray) else str(n) for n in names
                 ]
@@ -115,4 +111,4 @@ def evaluate_metadata_model(config: EvaluationConfig):
 if __name__ == "__main__":
     config = parse_evaluation_config()
     print_config(config)
-    evaluate_metadata_model(config)
+    evaluate(config)

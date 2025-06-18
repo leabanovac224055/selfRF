@@ -179,6 +179,12 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
                 class_counter += 1
 
             class_index = class_map[class_name]
+            
+            # ✅ Compute the time mask (right before appending metadata)
+            time_mask = np.zeros(frame_size, dtype=np.uint8)
+            start_in_frame = normalized_annotation[SigMFFile.START_INDEX_KEY]
+            length_in_frame = normalized_annotation[SigMFFile.LENGTH_INDEX_KEY]
+            time_mask[start_in_frame : start_in_frame + length_in_frame] = 1
 
             # ✅ Store metadata in TorchSig-compatible format
             metadata.append({
@@ -187,7 +193,7 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
                 "class_index": class_index,
                 "class_name": class_name,
                 "duration": global_sample_count / sample_rate,
-                "duration_in_samples": global_sample_count,
+                "duration_in_samples": normalized_annotation[SigMFFile.LENGTH_INDEX_KEY],
                 "lower_freq": normalized_annotation[SigMFFile.FLO_KEY],
                 "num_samples": global_sample_count,
                 "sample_rate": sample_rate,
@@ -196,7 +202,8 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
                 "start_in_samples": normalized_annotation[SigMFFile.START_INDEX_KEY],
                 "stop": (normalized_annotation[SigMFFile.START_INDEX_KEY] + normalized_annotation[SigMFFile.LENGTH_INDEX_KEY]) / frame_size,
                 "stop_in_samples": normalized_annotation[SigMFFile.START_INDEX_KEY] + global_sample_count,
-                "upper_freq": normalized_annotation[SigMFFile.FHI_KEY]
+                "upper_freq": normalized_annotation[SigMFFile.FHI_KEY],
+                "time_mask": time_mask.tolist()  # convert to list for json serializing
             })
 
             # ✅ Save ORIGINAL (not shifted) metadata for Tower B
@@ -206,9 +213,9 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
             original_bandwidth = abs(original_fhi - original_flo)
 
             feature_vectors.append({
-                "original_center_freq": original_center_freq,
-                "original_bandwidth": original_bandwidth,
-                "duration": global_sample_count / sample_rate,
+                "center_freq": original_center_freq / 2.5e9,   # GHz scale (normalize to ~1)
+                "bandwidth": original_bandwidth / 10e6,       # MHz scale (normalize to ~1)
+                "duration": (annotation[SigMFFile.LENGTH_INDEX_KEY] / sample_rate) / 1e-3,  # in ms
                 "class_index": class_index,
                 "class_name": class_name
             })
@@ -281,8 +288,7 @@ input_folder = "datasets/VariationStudy"
 output_folder = "datasets/NARROWBAND_ZARR"
 
 preprocess_narrowband_sigmf_files(
-    filepaths=[os.path.join(input_folder, f) for f in os.listdir(
-        input_folder) if f.endswith(".sigmf-meta")],
+    filepaths=[os.path.join(input_folder, f) for f in os.listdir(input_folder) if f.endswith(".sigmf-meta")][:5],
     output_dir=output_folder,
     frame_size=4096,
     isolate=True

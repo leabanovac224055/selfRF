@@ -26,9 +26,25 @@ class ZarrNarrowbandDataset(Dataset):
     def __getitem__(self, idx):
         x = self.data[idx]
         y_dict = self.metadata[str(idx)][0]
-        signal = DatasetSignal(data=x, signals=[y_dict],
-                               dataset_metadata=self.dataset_metadata)
         
+        # Dynamically reconstruct time_mask
+        frame_size = self.data.shape[1]
+        time_mask = np.zeros(frame_size, dtype=np.uint8)
+
+        start_in_frame = y_dict["start_in_samples"]
+        length_in_frame = y_dict["duration_in_samples"]
+
+        time_mask[start_in_frame : start_in_frame + length_in_frame] = 1
+    
+        signal = DatasetSignal(
+            data=x, 
+            signals=[y_dict],
+            dataset_metadata=self.dataset_metadata
+        )
+        
+        # Attach the mask manually
+        signal.time_mask = time_mask
+    
         if self.transform:
             signal = self.transform(signal)
             
@@ -57,7 +73,7 @@ class ZarrNarrowbandDataset(Dataset):
             y = tuple(item[0] for item in results)
             # now y == (class_index, class_name)
 
-        return signal.data, y
+        return signal, y
 
 
 class IQDMNarrowbandDataModule(LightningDataModule):

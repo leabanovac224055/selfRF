@@ -92,8 +92,7 @@ class MultiViewTransform(Transform):
             transformed_view = transform(data_copy)
             views.append(transformed_view)
 
-        signal.data = [view.data for view in views]
-        return signal
+        return tuple(views)
 
 
 class RandomAWGN(DatasetTransform):

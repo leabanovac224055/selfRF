@@ -30,6 +30,11 @@ def train(config: TrainingConfig):
         datamodule.val_dataloader = None
 
     ssl_model = build_ssl_model(config)
+    
+    # Load only weights
+    checkpoint = torch.load("/home/airbus/selfRF/train/moco_v3/lightning_logs/version_21/combined-dataset-MOCOV3-resnet-50-IQDM_NARROWBAND-iq-e38-b64-loss0.706.ckpt", map_location=config.device, weights_only=False)
+    ssl_model.load_state_dict(checkpoint['state_dict'], strict=False)
+    print("✅ Checkpoint successfully loaded into model!")
 
     # Logger
     logger = TensorBoardLogger(
@@ -40,7 +45,7 @@ def train(config: TrainingConfig):
     checkpoint_callback = ModelAndBackboneCheckpoint(
         dirpath=f"{logger.save_dir}/lightning_logs/version_{logger.version}",
         filename=(
-            f"wbesttrainloss-"
+            f"combined-dataset-"
             f"{config.ssl_model.name}"
             f"-{config.backbone.value}"
             f"-{config.dataset.value}"

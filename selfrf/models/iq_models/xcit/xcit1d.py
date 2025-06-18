@@ -58,7 +58,7 @@ class XCiT1d(nn.Module):
 
 
         # Include the grouper Conv1d layer
-        self.grouper = nn.Conv1d(W, n_features, kernel_size=1)
+        #self.grouper = nn.Conv1d(W, n_features, kernel_size=1)
 
         # Replace the patch embedding with a 1D version
         if ds_method == "downsample":
@@ -73,7 +73,7 @@ class XCiT1d(nn.Module):
         # Replace the classifier head with an identity layer (since we use self.grouper)
         self.backbone.head = nn.Identity()
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, mask: Optional[Tensor] = None) -> Tuple[Tensor, Tensor]:
         mdl = self.backbone
         B = x.shape[0]
 
@@ -109,17 +109,29 @@ class XCiT1d(nn.Module):
         # Extract the classification token (first token)
         cls_token = x[:, 0, :]  # Shape: [B, C]
 
-        # Reshape for Conv1d: [B, C, 1]
-        cls_token = cls_token.unsqueeze(-1)  # Shape: [B, C, 1]
+        # ✅ Masked pooled embedding output
+        sequence_tokens = x[:, 1:, :]  # [B, T, C]
+        sequence_tokens = sequence_tokens.permute(0, 2, 1)  # [B, C, T]
 
-        # Apply the grouper Conv1d
-        x = self.grouper(cls_token).squeeze(-1)  # Shape: [B, n_features]
+        if mask is not None:
+            # Resample mask to match sequence_tokens time length
+            T_feat = sequence_tokens.shape[-1]
+            mask_resampled = torch.nn.functional.interpolate(
+                mask.unsqueeze(1).float(),  # [B, 1, T_raw]
+                size=T_feat,
+                mode="linear",
+                align_corners=False
+            ).squeeze(1).clamp(0, 1)  # [B, T_feat]
 
-        # If x is 1D (batch size 1), ensure it has the correct shape
-        if x.dim() == 1:
-            x = x.unsqueeze(0)
+            mask_resampled = mask_resampled.unsqueeze(1)  # [B, 1, T_feat]
 
-        return x
+            sum_feat = (sequence_tokens * mask_resampled).sum(-1)
+            count = mask_resampled.sum(-1).clamp(min=1e-8)
+            pooled_token = sum_feat / count  # [B, C]
+        else:
+            pooled_token = sequence_tokens.mean(-1)
+
+        return cls_token, pooled_token
 
 class ConvDownSampler(nn.Module):
     def __init__(self, in_chans: int, embed_dim: int, ds_rate: int = 16):

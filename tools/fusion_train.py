@@ -1,7 +1,9 @@
 import torch
+import os
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from selfrf.pretraining.utils.callbacks import ModelAndBackboneCheckpoint
 
 from selfrf.data import TwoTowerTrainModule
 from selfrf.models.meta_models.mlp import MLP
@@ -25,7 +27,7 @@ def train_fusion():
 
     # ✅ Load IQ encoder checkpoint
     iq_ckpt = torch.load(
-        "/home/airbus/selfRF/train/moco_v3/lightning_logs/version_2/MOCOV3-xcit-xcit_tiny_12_p16_224-IQDM_NARROWBAND-iq-e45-b64-loss3.819.ckpt",
+        "/home/airbus/selfRF/train/moco_v3/lightning_logs/version_21/combined-dataset-MOCOV3-resnet-50-IQDM_NARROWBAND-iq-e38-b64-loss0.706.ckpt",
         map_location=config.device,
         weights_only=False
     )
@@ -34,8 +36,13 @@ def train_fusion():
     # 🔍 Determine IQ encoder embedding dim
     dummy_input = torch.randn(1, 2, config.num_iq_samples).to(config.device)
     with torch.no_grad():
-        dummy_output = iq_encoder(dummy_input)
-    iq_embedding_dim = dummy_output.shape[1]
+        cls_token, pooled_token = iq_encoder(dummy_input)
+        if pooled_token is not None:
+            features = torch.cat([cls_token, pooled_token], dim=-1)
+        else:
+            features = cls_token
+
+    iq_embedding_dim = features.shape[1]
     print(f"🔢 IQ encoder output dim: {iq_embedding_dim}")
 
     # ✅ Build and load frozen metadata tower
@@ -46,7 +53,7 @@ def train_fusion():
     )
     metadata_model.to(config.device)
     metadata_ckpt = torch.load(
-        "/home/airbus/selfRF/train/metadata_tower/lightning_logs/version_3/metadata_tower-TWO_TOWER_NARROWBAND-iq-eepoch=14-b16-losstrain_loss=2.714.ckpt",
+        "/home/airbus/selfRF/train/metadata_tower/lightning_logs/version_14/metadata_tower-TWO_TOWER_NARROWBAND-iq-sepoch=48-b64-losstrain_loss=4.114.ckpt",
         map_location=config.device
     )
     metadata_model.load_state_dict(metadata_ckpt["state_dict"], strict=False)
@@ -73,14 +80,47 @@ def train_fusion():
     datamodule = build_dataloader(config)
     datamodule.setup("fit")
 
-    # ✅ Setup trainer
-    logger = TensorBoardLogger("tb_logs", name="fusion_train")
+    # Logger
+    logger = TensorBoardLogger(
+        os.path.join(config.training_path, "fusion_head")
+    )
+
+    # ✅ Checkpoint callback
+    checkpoint_callback = ModelAndBackboneCheckpoint(
+        dirpath=f"{logger.save_dir}/lightning_logs/version_{logger.version}",
+        filename=(
+            f"fusion_head-"
+            f"{config.ssl_model.name}"
+            f"-{config.backbone.value}"
+            f"-{config.dataset.value}"
+            f"-{'spec' if config.spectrogram else 'iq'}"
+            f"-e{{epoch:d}}"
+            f"-b{config.batch_size}"
+            f"-loss{{train_loss:.3f}}"
+        ),
+        save_top_k=10,
+        verbose=True,
+        save_last=True,
+        monitor="train_loss",
+        mode="min",
+    )
+
+    # ✅ Early stopping callback
+    early_stopping_callback = EarlyStopping(
+        monitor="train_loss",
+        mode="min",
+        patience=10,
+        verbose=True,
+    )
+
+    # ✅ Trainer
     trainer = Trainer(
         max_epochs=config.two_tower_num_epochs,
-        logger=logger,
-        accelerator=config.device.type,
-        precision="16-mixed",
         devices=1,
+        accelerator=config.device.type,
+        precision=32,
+        callbacks=[checkpoint_callback, early_stopping_callback],
+        logger=logger,
     )
 
     # 🚀 Train fusion head

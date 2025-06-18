@@ -48,7 +48,17 @@ def build_resnet1d(
             )
         )
         if not feature_only:
-            mdl.fc = Linear(mdl.fc.in_features, n_features)   
+            mdl.fc = Linear(mdl.fc.in_features, n_features)
+            
+        # After model is built
+        import torch
+        dummy_input = torch.randn(1, 2, 4096)  # your IQ shape
+        features = mdl(dummy_input)
+
+        # This will give you correct final feature dimension
+        print(features.shape)
+
+               
         return mdl
     else:
         raise ValueError(f"{provider} does not provider a ResNet 1D backbone.")

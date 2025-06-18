@@ -1,5 +1,7 @@
 import torch
 from typing import Any, Callable, List, Tuple, Union
+import numpy as np
+from torchsig.signals.signal_types import DatasetSignal
 
 from selfrf.pretraining.utils.enums import CollateType, DatasetType
 from selfrf.pretraining.config import TrainingConfig, EvaluationConfig
@@ -29,23 +31,23 @@ def build_collate_fn(config: Union[TrainingConfig, EvaluationConfig], is_val=Fal
 
     # 2. Fusion model training (two-tower)
     if getattr(config, "training_stage", None) == TrainingStage.FUSION:
-        return TwoTowerCollate(validation_mode=is_val)
+        return TwoTowerCollate(is_val=is_val)
 
     # 3. Evaluation mode fallback
     if isinstance(config, EvaluationConfig):
         if config.dataset == DatasetType.TWO_TOWER_NARROWBAND:
-            return TwoTowerCollate(validation_mode=True)
+            return TwoTowerCollate(is_val=True)
         return collate_fn_evaluation
 
     # 4. SSL: use standard multi/single-view logic
     if getattr(config, "online_linear_eval", False) and is_val:
-        return MultiViewCollate(validation_mode=True)
+        return MultiViewCollate(is_val=True)
 
     ssl_model = config.ssl_model
 
     if ssl_model.collate_type == CollateType.MULTI_VIEW:
         print("[DEBUG] Using MultiViewCollate")
-        return MultiViewCollate()
+        return MultiViewCollate(is_val=False)
     elif ssl_model.collate_type == CollateType.SINGLE_VIEW:
         print("[DEBUG] Using SingleViewCollate")
         return SingleViewCollate()
@@ -57,15 +59,19 @@ def collate_fn_evaluation(batch):
     # Extract tensors and targets
     tensors, targets = zip(*batch)
 
-    # Stack tensors into single batch
+    # ✅ Extract underlying tensor if wrapped in DatasetSignal
+    tensors = [t.data if hasattr(t, "data") else t for t in tensors]
+
+    # ✅ Stack tensors into single batch
     tensors = torch.stack(tensors)
 
+    # Extract class indices
     indices = [y[0] for y in targets]
-    # Convert targets to tensor
     indices = torch.tensor(indices)
-    
+
+    # Extract class names
     names = [y[1][0] if isinstance(y[1], tuple) else y[1] for y in targets]
-    
+
     return tensors, (indices, names)
 
 
@@ -87,68 +93,78 @@ class SingleViewCollate:
 
 
 class MultiViewCollate:
-    """Collate function for multi-view SSL methods like BYOL or DINO."""
+    """Collate function for multi-view SSL methods like BYOL or DINO with masks."""
     
-    def __init__(self, validation_mode=False):
-        self.validation_mode = validation_mode    
+    def __init__(self, is_val=False):
+        self.is_val = is_val
 
     def __call__(self, batch: List[Any]) -> Tuple[torch.Tensor, ...]:
-        # Unpacks [(views1, label1), (views2, label2), ...]
         views, targets = zip(*batch)
-        # Unpacks [(view1_1, view1_2), (view2_1, view2_2), ...]
-        view1s, view2s = zip(*views)
         
+        (view1_pairs, view2_pairs) = zip(*views)
+        view1_iq, view1_mask = zip(*view1_pairs)
+        view2_iq, view2_mask = zip(*view2_pairs)
+
+        def to_tensor(x):
+            if isinstance(x, np.ndarray):
+                return torch.from_numpy(np.ascontiguousarray(x))
+            return x
+
+        view1_iq = torch.stack([to_tensor(arr) for arr in view1_iq])
+        view1_mask = torch.stack([to_tensor(arr) for arr in view1_mask])
+        view2_iq = torch.stack([to_tensor(arr) for arr in view2_iq])
+        view2_mask = torch.stack([to_tensor(arr) for arr in view2_mask])
+
         targets = torch.tensor([y[0] for y in targets]).flatten()
 
-        if self.validation_mode:
-            stacked_views = torch.stack(view1s)
-            if stacked_views.ndim == 2:
-                stacked_views = stacked_views.view(stacked_views.shape[0], 2, -1)
-            return stacked_views, targets
+        if self.is_val:
+            return (view1_iq, view1_mask), targets
         else:
             return (
-                torch.stack(view1s),
-                torch.stack(view2s)
+                (view1_iq, view1_mask),
+                (view2_iq, view2_mask)
             ), targets
 
 
 class TwoTowerCollate:
-    def __init__(self, validation_mode=False):
-        self.validation_mode = validation_mode
-        print(f"[DEBUG] TwoTowerCollate initialized. Validation mode: {self.validation_mode}")
-        
-    def __call__(self, batch: List[Any]) -> Tuple[Tuple[torch.Tensor, torch.Tensor], torch.Tensor, Union[torch.Tensor, Tuple[torch.Tensor, list]]]:
-        """
-        Collate function for two-tower datasets.
-        Training: ((view1, view2), metadata_vector, label)
-        Evaluation: ((view1, view2), metadata_vector, (label_batch, name_batch))
-        """
-        
+    def __init__(self, is_val=False):
+        self.is_val = is_val
+        print(f"[DEBUG] TwoTowerCollate initialized. Validation mode: {self.is_val}")
+
+    def __call__(self, batch):
         views, metadata_vector, targets = zip(*batch)
         view1s, view2s = zip(*views)
-        
-        if self.validation_mode:
-            # Stack views correctly to form [B, C, L] shape
-            view1_batch = torch.stack(view1s)  # [B, 4096]
-            
-            # Ensure the view has the correct number of channels (2)
-            if view1_batch.ndim == 2:
-                view1_batch = view1_batch.unsqueeze(1)  # Add channel dimension
-                view1_batch = torch.cat([view1_batch, view1_batch], dim=1)  # Duplicate to create two channels
 
-            # Separate indices and names from targets
+        def unpack(signal):
+            if isinstance(signal, DatasetSignal):
+                iq = torch.tensor(signal.data, dtype=torch.float32)
+                mask = signal.time_mask
+            elif isinstance(signal, tuple) and len(signal) == 2:
+                iq, mask = signal
+            else:
+                raise ValueError(f"Unexpected signal type in unpack: {type(signal)}")
+            return iq, mask
+
+        if self.is_val:
+            view1_iq, view1_mask = zip(*[unpack(v) for v in view1s])
+            view1_iq_batch = torch.stack([iq.float() for iq in view1_iq])
+            view1_mask_batch = torch.stack([mask.float() for mask in view1_mask])
+            metadata_batch = torch.stack(metadata_vector)
             indices = [y[0] for y in targets]
             names = [y[1] if isinstance(y, tuple) else "unknown" for y in targets]
             indices = torch.tensor(indices)
-            return view1_batch, (indices, names)
+            return (view1_iq_batch, view1_mask_batch), metadata_batch, (indices, names)
         else:
-            # In training mode, use both views
-            view1_batch = torch.stack(view1s)
-            view2_batch = torch.stack(view2s)
+            view1_iq, view1_mask = zip(*[unpack(v) for v in view1s])
+            view2_iq, view2_mask = zip(*[unpack(v) for v in view2s])
+            view1_iq_batch = torch.stack([iq.float() for iq in view1_iq])
+            view1_mask_batch = torch.stack([mask.float() for mask in view1_mask])
+            view2_iq_batch = torch.stack([iq.float() for iq in view2_iq])
+            view2_mask_batch = torch.stack([mask.float() for mask in view2_mask])
             metadata_batch = torch.stack(metadata_vector)
             label_batch = torch.tensor(targets).long()
+            return ((view1_iq_batch, view1_mask_batch), (view2_iq_batch, view2_mask_batch)), metadata_batch, label_batch
 
-            return (view1_batch, view2_batch), metadata_batch, label_batch
 
 def metadata_collate_fn(batch):
     metadata = []

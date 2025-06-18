@@ -5,11 +5,10 @@ import torch
 from selfrf.pretraining.config import TrainingConfig, BaseConfig
 from selfrf.pretraining.config.evaluation_config import EvaluationConfig
 from selfrf.pretraining.utils.utils import get_class_list
-from selfrf.models.iq_models import build_resnet1d
+from selfrf.models.iq_models import build_resnet1d, ResNetWrapper, XCiT1d
 from selfrf.models.spectrogram_models import build_resnet2d, build_vit
 from selfrf.models.ssl_models import BYOL, DINO, DenseCL, MoCoV3
 from selfrf.pretraining.utils.enums import BackboneArchitecture, SSLModelType
-from selfrf.models.iq_models import XCiT1d
 from selfrf.models.meta_models import MLP, ConcatMLPHead
 
 
@@ -21,7 +20,7 @@ class BackboneConfig:
 
 class ModelFactory:
     _backbone_registry: Dict[BackboneConfig, Callable] = {
-        BackboneConfig(BackboneArchitecture.RESNET, False): lambda **kwargs: build_resnet1d(input_channels=2, ** kwargs),
+        BackboneConfig(BackboneArchitecture.RESNET, False): lambda **kwargs: ResNetWrapper(build_resnet1d(input_channels=2, ** kwargs)),
         BackboneConfig(BackboneArchitecture.RESNET, True): lambda **kwargs: build_resnet2d(input_channels=1, ** kwargs),
         BackboneConfig(BackboneArchitecture.VIT, True): lambda **kwargs: build_vit(input_channels=1, ** kwargs),
         BackboneConfig(BackboneArchitecture.XCIT, False): lambda **kwargs: XCiT1d(input_channels=2, ** kwargs),
@@ -113,6 +112,7 @@ class ModelFactory:
                 mlp_dim=config.mlp_dim,
                 T=config.temperature,
                 use_online_linear_eval=config.online_linear_eval,
+                use_masked_pooling=True
             )
 
         return ssl_model(

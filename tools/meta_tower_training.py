@@ -9,6 +9,7 @@ from selfrf.models.meta_models import MLP
 from selfrf.data import MetadataTrainModule
 from dotenv import load_dotenv
 from selfrf.pretraining.config import TrainingConfig, parse_training_config, print_config
+from selfrf.pretraining.config.training_config import TrainingStage
 
 import torch.nn as nn
 import torch.optim as optim
@@ -44,7 +45,7 @@ def train_metadata_tower(config: TrainingConfig):
             "metadata_tower"
             f"-{config.dataset.value}"
             f"-{'spec' if config.spectrogram else 'iq'}"
-            f"-e{{epoch:d}}"
+            f"-s{{epoch:d}}"
             f"-b{config.batch_size}"
             f"-loss{{train_loss:.3f}}"
         ),
@@ -71,7 +72,8 @@ def train_metadata_tower(config: TrainingConfig):
         callbacks=[checkpoint_callback, early_stopping],
         logger=logger,
         log_every_n_steps=10,
-        check_val_every_n_epoch=1
+        check_val_every_n_epoch=1,
+        num_sanity_val_steps=0
     )
 
     print("🚀 Training the metadata tower...")
@@ -83,6 +85,7 @@ if __name__ == "__main__":
     config = parse_training_config()
     print_config(config)
     # Override the mode specifically for metadata training
-    config.mode = "metadata"
-    print(f"✅ Mode set to: {config.mode}")
+    config.training_stage = TrainingStage.METADATA
+    is_val = False  # Not in validation mode for training
+    print(f"✅ Mode set to: {config.training_stage}")
     train_metadata_tower(config)

@@ -7,6 +7,22 @@ import warnings
 from tqdm import tqdm
 from sigmf.sigmffile import SigMFFile
 from copy import deepcopy
+from typing import Tuple
+
+
+def compute_signal_power(samples: np.ndarray) -> Tuple[float, float]:
+    """
+    Compute signal power in linear and dB scale.
+
+    Args:
+        samples (np.ndarray): Complex signal array.
+
+    Returns:
+        (linear_power, db_power): Tuple with linear and dB power.
+    """
+    linear_power = np.mean(np.abs(samples) ** 2)
+    db_power = 10 * np.log10(linear_power + 1e-12)  # avoid log(0)
+    return linear_power, db_power
 
 
 def filter_frequency(samples: np.ndarray[np.complex64], sample_rate: float, f_low: float, f_high: float) -> np.ndarray[np.complex64]:
@@ -72,7 +88,72 @@ def normalize_annotation_to_frame(annotation: dict, sample_start: int, sample_co
     return copy
 
 
-def isolate_signal(samples: np.ndarray[np.complex64], sample_rate: float, sample_start: int, sample_count: int, f_low: float, f_high: float) -> np.ndarray[np.complex64]:
+def isolate_signal_with_target_power_and_snr(
+    samples: np.ndarray[np.complex64],
+    sample_rate: float,
+    sample_start: int,
+    sample_count: int,
+    f_low: float,
+    f_high: float,
+    target_power: float = 1.0,
+    snr_db: float = 20.0,
+    min_boost: float = 0.1,
+    max_boost: float = 10.0,
+) -> tuple[np.ndarray, float, float]:
+    """
+    Isolate signal, normalize to target power, and embed into noise with controlled SNR.
+    
+    Args:
+        samples: Raw IQ samples.
+        sample_rate: Sampling rate.
+        sample_start: Start index for time cropping.
+        sample_count: Number of samples to extract.
+        f_low: Frequency filter lower bound (relative or absolute).
+        f_high: Frequency filter upper bound (relative or absolute).
+        target_power: Normalized target power (linear scale).
+        snr_db: Desired signal-to-noise ratio (dB).
+        min_boost: Lower limit for boost factor (safety clamp).
+        max_boost: Upper limit for boost factor (safety clamp).
+
+    Returns:
+        frame: Full complex frame with embedded signal + noise.
+        signal_power_db: Original signal power before boosting.
+        boost: Applied boost factor.
+    """
+
+    # --- Frequency filtering
+    filtered_samples = filter_frequency(samples, sample_rate, f_low, f_high)
+
+    # --- Time cropping
+    isolated_signal = filtered_samples[sample_start:sample_start + sample_count]
+
+    # --- Compute original signal power BEFORE boosting
+    signal_power = np.mean(np.abs(isolated_signal) ** 2)
+    signal_power_db = 10 * np.log10(signal_power + 1e-12)
+
+    # --- Apply boost to normalize to target_power
+    boost = np.sqrt(target_power / (signal_power + 1e-12))
+    boost = np.clip(boost, min_boost, max_boost)
+    boosted_signal = boost * isolated_signal
+
+    # --- Compute noise power based on boosted signal
+    snr_linear = 10 ** (snr_db / 10)
+    noise_power = target_power / snr_linear
+    noise_std = np.sqrt(noise_power)
+
+    # --- Create noise background
+    frame = (
+        np.random.normal(0, noise_std, size=len(samples)) +
+        1j * np.random.normal(0, noise_std, size=len(samples))
+    ).astype(np.complex64)
+
+    # --- Insert boosted signal into frame
+    frame[sample_start:sample_start + sample_count] += boosted_signal
+
+    return frame, signal_power_db, boost
+    
+    
+'''def isolate_signal(samples: np.ndarray[np.complex64], sample_rate: float, sample_start: int, sample_count: int, f_low: float, f_high: float) -> np.ndarray[np.complex64]:
     """
     Isolates a signal within a given frequency range from a sample of signals.
 
@@ -92,7 +173,7 @@ def isolate_signal(samples: np.ndarray[np.complex64], sample_rate: float, sample
         samples, sample_rate, f_low, f_high)
     filtered_samples = filter_time(
         filtered_samples, sample_start, sample_count)
-    return filtered_samples
+    return filtered_samples'''
 
 
 def get_capture_for_annotation(sigmf_file: SigMFFile, annotation: dict) -> dict:
@@ -150,14 +231,15 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
     class_counter = 0
 
     for filepath in tqdm(filepaths, desc="Processing SigMF datasets"):
-        sigmf_file = SigMFFile(skip_checksum)
+        sigmf_file = SigMFFile(skip_checksum=True)
         # ✅ Load metadata manually
         with open(filepath, 'r', encoding='utf-8') as f:
             metadata_json = json.load(f)
 
         sigmf_file.set_metadata(metadata_json)
         sigmf_file.set_data_file(
-            filepath.replace(".sigmf-meta", ".sigmf-data"))
+            filepath.replace(".sigmf-meta", ".sigmf-data"),
+            skip_checksum=True)
 
         file_length = len(sigmf_file)
         sample_rate = sigmf_file.get_global_field(SigMFFile.SAMPLE_RATE_KEY)
@@ -207,12 +289,19 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
             global_sample_start = max(0, global_sample_start)
             samples = sigmf_file.read_samples(
                 global_sample_start, global_sample_count)
-
+            
             # ✅ Apply isolation if needed
             if isolate:
-                samples = isolate_signal(
-                    samples, sample_rate, sample_start=normalized_annotation[
-                        SigMFFile.START_INDEX_KEY], sample_count=normalized_annotation[SigMFFile.LENGTH_INDEX_KEY], f_low=normalized_annotation[SigMFFile.FLO_KEY], f_high=normalized_annotation[SigMFFile.FHI_KEY])
+                samples, signal_power_db, boost = isolate_signal_with_target_power_and_snr(
+                    samples=samples,
+                    sample_rate=sample_rate,
+                    sample_start=normalized_annotation[SigMFFile.START_INDEX_KEY],
+                    sample_count=normalized_annotation[SigMFFile.LENGTH_INDEX_KEY],
+                    f_low=normalized_annotation[SigMFFile.FLO_KEY],
+                    f_high=normalized_annotation[SigMFFile.FHI_KEY],
+                    target_power=1.0,    # ✅ you can tune this if you want another normalization level
+                    snr_db = np.random.uniform(45, 55)         # ✅ you can also randomize this for augmentation later
+                )
 
             # Skip zero signals
             if np.allclose(samples, 0, atol=1e-10):
@@ -229,6 +318,10 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
             elif len(samples) < frame_size:
                 samples = np.pad(
                     samples, (0, frame_size - len(samples)), mode="constant")
+                
+            # ✅ Compute signal power
+            signal_power_linear, signal_power_db = compute_signal_power(samples)
+            print(f"✅ Signal Power: {signal_power_linear:.6f} ({signal_power_db:.2f} dB)")
 
             # Store the processed signal
             all_signals.append(samples)
@@ -248,11 +341,12 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
                 "class_index": class_index,
                 "class_name": class_name,
                 "duration": global_sample_count / sample_rate,
-                "duration_in_samples": global_sample_count,
+                "duration_in_samples": normalized_annotation[SigMFFile.LENGTH_INDEX_KEY],
                 "lower_freq": normalized_annotation[SigMFFile.FLO_KEY],
                 "num_samples": global_sample_count,
                 "sample_rate": sample_rate,
                 "snr_db": normalized_annotation.get("snr_db", 0.0),
+                "signal_power_db": signal_power_db,
                 "start": normalized_annotation[SigMFFile.START_INDEX_KEY] / frame_size,
                 "start_in_samples": normalized_annotation[SigMFFile.START_INDEX_KEY],
                 "stop": (normalized_annotation[SigMFFile.START_INDEX_KEY] + normalized_annotation[SigMFFile.LENGTH_INDEX_KEY]) / frame_size,
@@ -265,12 +359,14 @@ def preprocess_narrowband_sigmf_files(filepaths, output_dir, frame_size=4096, is
             original_fhi = annotation[SigMFFile.FHI_KEY]
             original_center_freq = (original_flo + original_fhi) / 2
             original_bandwidth = abs(original_fhi - original_flo)
+            original_duration_sec = annotation[SigMFFile.LENGTH_INDEX_KEY] / sample_rate
 
             feature_vectors.append({
-                "original_center_freq": original_center_freq,
-                "original_bandwidth": original_bandwidth,
-                "duration": global_sample_count / sample_rate,
-                "class_index": class_index
+                "center_freq": original_center_freq / 1e9,  # Convert to GHz
+                "bandwidth": np.log10(original_bandwidth + 1),  # Log scale with +1 Hz shift
+                "duration": np.log10(original_duration_sec + 1e-6),  # Log scale with +1e-6 sec shift
+                "class_index": class_index,
+                "class_name": class_name
             })
 
     # ✅ Convert signals to a NumPy array
@@ -337,8 +433,8 @@ def save_to_single_zarr(zarr_path, all_signals, metadata, frame_size=4096):
 
 
 # 🚀 Run preprocessing
-input_folder = "datasets/SIGMF"
-output_folder = "datasets/NARROWBAND_ZARR"
+input_folder = "datasets/VariationStudy+test"
+output_folder = "datasets/NARROWBAND_ZARR_FILTERED"
 
 preprocess_narrowband_sigmf_files(
     filepaths=[os.path.join(input_folder, f) for f in os.listdir(

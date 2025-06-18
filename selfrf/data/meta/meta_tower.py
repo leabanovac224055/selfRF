@@ -4,7 +4,16 @@ import torch.nn.functional as F
 import torch.optim as optim
 from pytorch_lightning import LightningModule
 
+# ✅ Metadata augmentation function (added for contrastive views)
+def augment_metadata(metadata_tensor, noise_std=0.01):
+    noise = torch.randn_like(metadata_tensor) * noise_std
+    return metadata_tensor + noise
+
 class NTXentLoss(nn.Module):
+    """
+    Normalized Temperature-scaled Cross Entropy Loss (NT-Xent)
+    For self-supervised contrastive learning.
+    """
     def __init__(self, temperature=0.5):
         super(NTXentLoss, self).__init__()
         self.temperature = temperature
@@ -35,27 +44,34 @@ class NTXentLoss(nn.Module):
         return loss
 
 class MetadataTrainModule(LightningModule):
-    def __init__(self, metadata_tower, lr=1e-3, temperature=0.5):
+    """
+    PyTorch Lightning training module for metadata tower self-supervised learning
+    using NT-Xent contrastive loss.
+    """
+
+    def __init__(self, metadata_tower, lr=1e-3, temperature=0.5, augment_std=0.01):
         super().__init__()
         self.metadata_tower = metadata_tower
         self.loss_fn = NTXentLoss(temperature=temperature)  # Use NT-Xent loss
         self.lr = lr
+        self.augment_std = augment_std  # Standard deviation for metadata augmentation
 
     def forward(self, x):
         return self.metadata_tower(x)
 
     def training_step(self, batch, batch_idx):
         metadata, _ = batch
-        z_i = self(metadata)
-        z_j = self(metadata)  # Simulate a second view of the same data
-        loss = self.loss_fn(z_i, z_j)  # NT-Xent loss
+        # Apply augmentation for both views
+        z_i = self(augment_metadata(metadata, self.augment_std))
+        z_j = self(augment_metadata(metadata, self.augment_std))
+        loss = self.loss_fn(z_i, z_j)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         metadata, _ = batch
-        z_i = self(metadata)
-        z_j = self(metadata)  # Simulate a second view of the same data
+        z_i = self(augment_metadata(metadata, self.augment_std))
+        z_j = self(augment_metadata(metadata, self.augment_std))
         loss = self.loss_fn(z_i, z_j)
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
