@@ -53,7 +53,7 @@ def train_fusion():
     )
     metadata_model.to(config.device)
     metadata_ckpt = torch.load(
-        "/home/airbus/selfRF/train/metadata_tower/lightning_logs/version_14/metadata_tower-TWO_TOWER_NARROWBAND-iq-sepoch=48-b64-losstrain_loss=4.114.ckpt",
+        "/home/airbus/selfRF/train/metadata_tower/lightning_logs/version_15/metadata_tower-TWO_TOWER_NARROWBAND-iq-sepoch=40-b64-losstrain_loss=4.110.ckpt",
         map_location=config.device
     )
     metadata_model.load_state_dict(metadata_ckpt["state_dict"], strict=False)
@@ -115,7 +115,7 @@ def train_fusion():
 
     # ✅ Trainer
     trainer = Trainer(
-        max_epochs=config.two_tower_num_epochs,
+        max_epochs=config.num_epochs,
         devices=1,
         accelerator=config.device.type,
         precision=32,

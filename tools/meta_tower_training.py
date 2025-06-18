@@ -66,7 +66,7 @@ def train_metadata_tower(config: TrainingConfig):
 
     # Trainer configuration
     trainer = Trainer(
-        max_epochs=config.two_tower_num_epochs,
+        max_epochs=config.num_epochs,
         devices=1,
         accelerator=config.device.type,
         callbacks=[checkpoint_callback, early_stopping],

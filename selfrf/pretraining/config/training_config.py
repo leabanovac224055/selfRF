@@ -8,7 +8,6 @@ DEFUALT_ONLINE_LINEAR_EVAL = False
 DEFAULT_SSL_MODEL = SSLModelType.BYOL
 DEFAULT_TRAINING_PATH = './train'
 DEFAULT_NUM_EPOCHS = 100
-DEFAULT_TWO_TOWER_NUM_EPOCHS = 50
 SSL_MODEL_MAP = {model_type.value: model_type for model_type in SSLModelType}
 DEFAULT_TRAIN_TWO_TOWER = False
 
@@ -29,7 +28,6 @@ class TrainingConfig(BaseConfig):
     ssl_model: SSLModelType = DEFAULT_SSL_MODEL
     training_path: str = DEFAULT_TRAINING_PATH
     num_epochs: int = DEFAULT_NUM_EPOCHS
-    two_tower_num_epochs: int = DEFAULT_TWO_TOWER_NUM_EPOCHS
 
     training_stage: TrainingStage = DEFAULT_TRAINING_STAGE
     
@@ -68,12 +66,6 @@ def add_training_config_args(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_NUM_EPOCHS
     )
     parser.add_argument(
-        '--two-tower-num-epochs',
-        type=int,
-        default=DEFAULT_TWO_TOWER_NUM_EPOCHS,
-        help="Number of epochs for two-tower phase"
-    )
-    parser.add_argument(
         '--training-stage',
         type=lambda x: TrainingStage(x.lower()),
         choices=list(TrainingStage),
@@ -106,7 +98,6 @@ def parse_training_config() -> TrainingConfig:
         ssl_model=args.ssl_model,
         training_path=args.training_path,
         num_epochs=args.num_epochs,
-        two_tower_num_epochs=args.two_tower_num_epochs,
         training_stage=args.training_stage,
     )
 
