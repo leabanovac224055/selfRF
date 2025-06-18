@@ -6,7 +6,7 @@ import joblib
 # 🔧 CONFIGURATION
 FEATURE_VECTOR_FILE = "datasets/NARROWBAND_ZARR/feature_vectors.json"
 SCALER_FILE = "datasets/NARROWBAND_ZARR/metadata_scaler.pkl"
-SCALED_OUTPUT_FILE = "X_scaled.npy"  # optional: save for direct dataset loading
+SCALED_OUTPUT_FILE = "datasets/NARROWBAND_ZARR/X_scaled.npy"  # optional: save for direct dataset loading
 
 # 🔧 1️⃣ Load your extracted feature vectors
 with open(FEATURE_VECTOR_FILE, "r") as f:

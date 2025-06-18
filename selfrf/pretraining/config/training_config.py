@@ -106,7 +106,8 @@ def parse_training_config() -> TrainingConfig:
         ssl_model=args.ssl_model,
         training_path=args.training_path,
         num_epochs=args.num_epochs,
-        two_tower_num_epochs=args.two_tower_num_epochs
+        two_tower_num_epochs=args.two_tower_num_epochs,
+        training_stage=args.training_stage,
     )
 
     return training_config

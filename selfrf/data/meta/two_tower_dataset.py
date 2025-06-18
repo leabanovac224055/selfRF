@@ -1,5 +1,6 @@
 import os
 import zarr
+import numpy as np
 import json
 import torch
 from torch.utils.data import Dataset, DataLoader, random_split
@@ -8,7 +9,7 @@ from torchsig.signals.signal_types import DatasetSignal
 from torchsig.datasets.dataset_metadata import NarrowbandMetadata
 from selfrf.pretraining.config import BaseConfig
 from selfrf.pretraining.factories import build_collate_fn, metadata_collate_fn, metadata_collate_fn_eval 
-from selfrf.pretraining.config.training_config import TrainingStage
+from selfrf.pretraining.utils.enums import TrainingStage
 
 
 class TwoTowerDataset(Dataset):
@@ -16,6 +17,7 @@ class TwoTowerDataset(Dataset):
         self,
         zarr_path: str,
         feature_vector_path: str,
+        label_info_path: str,
         transform=None,
         target_transform=None,
         dataset_metadata=None,
@@ -33,9 +35,11 @@ class TwoTowerDataset(Dataset):
         self.load_class_name = load_class_name
         self.training_stage = training_stage
 
-        # Load metadata feature vectors from JSON
-        with open(feature_vector_path, 'r') as f:
-            self.feature_vectors = json.load(f)
+        # Load metadata feature vectors from .npy (already scaled)
+        self.feature_vectors = np.load(feature_vector_path).astype(np.float32)
+        
+        with open(label_info_path, 'r') as f:
+            self.label_info = json.load(f)
 
         assert len(self.zarr_data) == len(self.feature_vectors), (
             f"Mismatch between IQ samples ({len(self.zarr_data)}) and "
@@ -46,6 +50,16 @@ class TwoTowerDataset(Dataset):
         return len(self.zarr_data)
 
     def __getitem__(self, idx):
+        vector_dict = self.label_info[idx]
+        metadata_vector = torch.tensor(self.feature_vectors[idx], dtype=torch.float32)
+        label = (
+            (vector_dict.get("class_index", 0), vector_dict.get("class_name", "unknown"))
+            if self.load_class_name else vector_dict.get("class_index", 0)
+        )
+
+        if self.training_stage == TrainingStage.METADATA:
+            return metadata_vector, label
+        
         iq = self.zarr_data[idx]
         y_dict = self.attrs[str(idx)][0]
 
@@ -59,17 +73,8 @@ class TwoTowerDataset(Dataset):
         signal = DatasetSignal(data=iq, signals=[y_dict], dataset_metadata=self.dataset_metadata)
         signal.time_mask = mask
 
-        vector_dict = self.feature_vectors[idx]
-        metadata_vector = []
-        for k in vector_dict:
-            if k not in ["class_index", "class_name"]:
-                value = vector_dict[k]
-                if isinstance(value, list):
-                    value = torch.cat([v.flatten() for v in value], dim=0)
-                else:
-                    value = torch.tensor([value], dtype=torch.float32)
-                metadata_vector.append(value)
-        metadata_vector = torch.cat(metadata_vector, dim=0)
+        metadata_vector = torch.tensor(self.feature_vectors[idx], dtype=torch.float32)
+        vector_dict = self.label_info[idx]
 
         if self.load_class_name:
             label = (vector_dict.get("class_index", 0), vector_dict.get("class_name", "unknown"))
@@ -78,9 +83,6 @@ class TwoTowerDataset(Dataset):
 
         iq_tensor = torch.tensor(iq, dtype=torch.float32)
         mask_tensor = mask
-
-        if self.training_stage == TrainingStage.METADATA:
-            return metadata_vector, label
 
         if self.transform:
             output = self.transform(signal)
@@ -122,7 +124,8 @@ class TwoTowerDataModule(LightningDataModule):
         self.collate_fn_train = build_collate_fn(config, is_val=False)
         self.collate_fn_val   = build_collate_fn(config, is_val=True)
         self.zarr_path = os.path.join(root, "NARROWBAND_ZARR", "data.zarr")
-        self.feature_vector_path = os.path.join(root, "NARROWBAND_ZARR", "feature_vectors.json")
+        self.feature_vector_path = os.path.join(root, "NARROWBAND_ZARR", "X_scaled.npy")
+        self.label_info_path = os.path.join(root, "NARROWBAND_ZARR", "feature_vectors.json")
         
         self.dataset_metadata = NarrowbandMetadata(
             num_iq_samples_dataset=4096,
@@ -139,6 +142,7 @@ class TwoTowerDataModule(LightningDataModule):
         full_dataset = TwoTowerDataset(
             zarr_path=self.zarr_path,
             feature_vector_path=self.feature_vector_path,
+            label_info_path=self.label_info_path,
             transform=self.transforms,
             target_transform=self.target_transforms,
             dataset_metadata=self.dataset_metadata,
