@@ -73,11 +73,6 @@ class TwoTowerTrainModule(LightningModule):
         # Unpack batch with masks
         ((view1_iq, view1_mask), (view2_iq, view2_mask)), metadata, _ = batch
 
-        # Debug info for sanity
-        for i, (v_iq, v_mask) in enumerate([(view1_iq, view1_mask), (view2_iq, view2_mask)]):
-            print(f"✅ view{i+1} IQ: min={v_iq.min().item()}, max={v_iq.max().item()}, std={v_iq.std().item()}")
-            print(f"✅ view{i+1} MASK: min={v_mask.min().item()}, max={v_mask.max().item()}, std={v_mask.std().item()}")
-
         # NaN checks for inputs
         for tensor, name in [
             (view1_iq, "view1_iq"), (view1_mask, "view1_mask"),

@@ -135,14 +135,25 @@ class TwoTowerCollate:
         views, metadata_vector, targets = zip(*batch)
         view1s, view2s = zip(*views)
 
+        def to_tensor(arr):
+            """Ensure input is a torch tensor."""
+            if isinstance(arr, torch.Tensor):
+                return arr
+            import numpy as np
+            if isinstance(arr, np.ndarray) and not arr.flags['C_CONTIGUOUS']:
+                arr = arr.copy()
+            return torch.tensor(arr)
+
         def unpack(signal):
             if isinstance(signal, DatasetSignal):
-                iq = torch.tensor(signal.data, dtype=torch.float32)
-                mask = signal.time_mask
+                iq = to_tensor(signal.data).float()
+                mask = to_tensor(signal.time_mask).float()
             elif isinstance(signal, tuple) and len(signal) == 2:
                 iq, mask = signal
+                iq = to_tensor(iq).float()
+                mask = to_tensor(mask).float()
             else:
-                raise ValueError(f"Unexpected signal type in unpack: {type(signal)}")
+                raise ValueError(f"[Collate] Unexpected signal type: {type(signal)}")
             return iq, mask
 
         if self.is_val:

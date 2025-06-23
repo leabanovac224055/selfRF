@@ -81,7 +81,7 @@ class TwoTowerDataset(Dataset):
         else:
             label = vector_dict.get("class_index", 0)
 
-        iq_tensor = torch.tensor(iq, dtype=torch.float32)
+        iq_tensor = torch.tensor(np.stack([iq.real, iq.imag], axis=0), dtype=torch.float32)
         mask_tensor = mask
 
         if self.transform:
