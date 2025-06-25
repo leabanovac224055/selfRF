@@ -81,7 +81,12 @@ class TwoTowerTrainModule(LightningModule):
         ]:
             if torch.isnan(tensor).any():
                 raise ValueError(f"NaNs in {name}")
-
+            
+        if torch.all(view1_iq == 0):
+            raise ValueError("All-zero raw IQ input for view1_iq")
+        if torch.all(view2_iq == 0):
+            raise ValueError("All-zero raw IQ input for view2_iq")
+        
         # Forward pass for IQ encoder
         iq_emb1_tuple = self.iq_encoder(view1_iq)
         iq_emb2_tuple = self.iq_encoder(view2_iq)
@@ -89,6 +94,10 @@ class TwoTowerTrainModule(LightningModule):
         # Always unpack (cls_token, pooled_token)
         iq_emb1_cls, iq_emb1_pool = iq_emb1_tuple
         iq_emb2_cls, iq_emb2_pool = iq_emb2_tuple
+        
+        ### 🔧 Debug: Print encoder output statistics
+        print(f"iq_emb1_cls mean: {iq_emb1_cls.mean().item()}, std: {iq_emb1_cls.std().item()}")
+        print(f"iq_emb2_cls mean: {iq_emb2_cls.mean().item()}, std: {iq_emb2_cls.std().item()}")
 
         # Use cls_token as the representation
         iq_emb1 = iq_emb1_cls
@@ -127,11 +136,18 @@ class TwoTowerTrainModule(LightningModule):
         return loss
 
     def configure_optimizers(self):
-        params = list(self.fusion_head.parameters())
-        if any(p.requires_grad for p in self.iq_encoder.parameters()):
-            params += list(self.iq_encoder.parameters())
-        if any(p.requires_grad for p in self.metadata_tower.parameters()):
-            params += list(self.metadata_tower.parameters())
+        param_groups = []
 
-        optimizer = torch.optim.Adam(params, lr=self.lr)
+        # Fusion head always uses full LR
+        param_groups.append({"params": self.fusion_head.parameters(), "lr": self.lr})
+
+        # Metadata tower, if not frozen, uses full LR
+        if any(p.requires_grad for p in self.metadata_tower.parameters()):
+            param_groups.append({"params": self.metadata_tower.parameters(), "lr": self.lr})
+
+        # IQ encoder, if not frozen, uses smaller LR
+        if any(p.requires_grad for p in self.iq_encoder.parameters()):
+            param_groups.append({"params": self.iq_encoder.parameters(), "lr": self.lr * 0.01})
+
+        optimizer = torch.optim.Adam(param_groups)
         return optimizer

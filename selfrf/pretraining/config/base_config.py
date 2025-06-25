@@ -31,7 +31,6 @@ DATASET_IQ_SAMPLES = {
 }
 
 # 🧠 Metadata tower defaults
-DEFAULT_USE_METADATA_TOWER = False
 DEFAULT_METADATA_INPUT_DIM = 3
 DEFAULT_METADATA_HIDDEN_DIM = 128
 DEFAULT_METADATA_OUTPUT_DIM = 64
@@ -77,7 +76,6 @@ class BaseConfig:
     to_float_32: bool = DEFAULT_TO_FLOAT_32
 
     # 🔥 Metadata tower config
-    use_metadata_tower: bool = DEFAULT_USE_METADATA_TOWER
     metadata_input_dim: int = DEFAULT_METADATA_INPUT_DIM
     metadata_hidden_dim: int = DEFAULT_METADATA_HIDDEN_DIM
     metadata_output_dim: int = DEFAULT_METADATA_OUTPUT_DIM
@@ -183,12 +181,6 @@ def add_base_config_args(parser: argparse.ArgumentParser) -> None:
     )
 
     # 🧠 Metadata tower CLI args
-    parser.add_argument(
-        '--use-metadata-tower',
-        type=lambda x: x.lower() == 'true',
-        default=DEFAULT_USE_METADATA_TOWER,
-        help="Enable the metadata tower for two-tower models"
-    )
     parser.add_argument(
         '--metadata-input-dim',
         type=int,

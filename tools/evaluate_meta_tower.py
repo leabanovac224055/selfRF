@@ -7,7 +7,7 @@ from selfrf.pretraining.config import EvaluationConfig, parse_evaluation_config,
 from selfrf.pretraining.factories import build_dataloader, build_meta_model
 from selfrf.pretraining.utils.utils import get_class_list
 from selfrf.pretraining.utils.enums import DatasetType
-
+from selfrf.pretraining.config.training_config import TrainingStage
 
 def convert_idx_to_name(idx: int, config: EvaluationConfig) -> str:
     """Convert index to either class or family name"""
@@ -19,6 +19,8 @@ def evaluate_metadata_model(config: EvaluationConfig):
 
     if not config.model_path:
         raise ValueError("model_path is required for evaluation")
+    
+    config.training_stage = TrainingStage.METADATA
 
     # Load metadata model
     model = build_meta_model(config)
@@ -116,5 +118,4 @@ def evaluate_metadata_model(config: EvaluationConfig):
 if __name__ == "__main__":
     config = parse_evaluation_config()
     print_config(config)
-    config.mode = "metadata"
     evaluate_metadata_model(config)

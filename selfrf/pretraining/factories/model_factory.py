@@ -10,6 +10,7 @@ from selfrf.models.spectrogram_models import build_resnet2d, build_vit
 from selfrf.models.ssl_models import BYOL, DINO, DenseCL, MoCoV3
 from selfrf.pretraining.utils.enums import BackboneArchitecture, SSLModelType
 from selfrf.models.meta_models import MLP, ConcatMLPHead
+from selfrf.pretraining.config.training_config import TrainingStage
 
 
 @dataclass(frozen=True)  # makes the dataclass immutable
@@ -124,9 +125,9 @@ class ModelFactory:
 
     @classmethod
     def create_meta_model(cls, config: BaseConfig) -> Optional[torch.nn.Module]:
-        if not config.use_metadata_tower:
+        if getattr(config, "training_stage", None) != TrainingStage.METADATA and getattr(config, "training_stage", None) != TrainingStage.FUSION:
             return None
-        return cls._meta_registry["mlp"](config)
+        return cls._meta_registry[config.metadata_model.value.lower()](config)
 
     @classmethod
     def create_fusion_head(

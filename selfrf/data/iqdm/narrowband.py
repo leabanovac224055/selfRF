@@ -431,15 +431,15 @@ def save_to_single_zarr(zarr_path, all_signals, metadata, frame_size=4096):
     print(
         f"✅ Successfully saved {all_signals.shape[0]} signals to {zarr_path}")
 
+if __name__ == "__main__":
+    # 🚀 Run preprocessing
+    input_folder = "datasets/VariationStudy+test"
+    output_folder = "datasets/NARROWBAND_ZARR"
 
-# 🚀 Run preprocessing
-input_folder = "datasets/VariationStudy+test"
-output_folder = "datasets/NARROWBAND_ZARR_FILTERED"
-
-preprocess_narrowband_sigmf_files(
-    filepaths=[os.path.join(input_folder, f) for f in os.listdir(
-        input_folder) if f.endswith(".sigmf-meta")],
-    output_dir=output_folder,
-    frame_size=4096,
-    isolate=True
-)
+    preprocess_narrowband_sigmf_files(
+        filepaths=[os.path.join(input_folder, f) for f in os.listdir(
+            input_folder) if f.endswith(".sigmf-meta")],
+        output_dir=output_folder,
+        frame_size=4096,
+        isolate=True
+    )

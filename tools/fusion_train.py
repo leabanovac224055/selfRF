@@ -3,7 +3,7 @@ import os
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-from selfrf.pretraining.utils.callbacks import ModelAndBackboneCheckpoint
+from selfrf.pretraining.utils.callbacks import ModelCheckpoint
 
 from selfrf.data import TwoTowerTrainModule
 from selfrf.models.meta_models.mlp import MLP
@@ -85,8 +85,8 @@ def train_fusion():
         os.path.join(config.training_path, "fusion_head")
     )
 
-    # ✅ Checkpoint callback
-    checkpoint_callback = ModelAndBackboneCheckpoint(
+    # ✅ Checkpoint callback — ONLY saves full model
+    checkpoint_callback = ModelCheckpoint(
         dirpath=f"{logger.save_dir}/lightning_logs/version_{logger.version}",
         filename=(
             f"fusion_head-"
