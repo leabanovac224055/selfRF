@@ -16,7 +16,7 @@ class EvaluateKNN():
                  x: List[np.ndarray],
                  y: List[str],
                  split: float = 0.8,
-                 shuffel: bool = True,
+                 shuffle: bool = True,
                  n_neighbors: int = 50,
                  verbose: bool = True):
         """Initialize KNN evaluation.
@@ -40,7 +40,7 @@ class EvaluateKNN():
 
         # Split the data
         self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(
-            x, y, train_size=split, shuffle=shuffel, random_state=42)
+            x, y, train_size=split, shuffle=shuffle, random_state=42)
 
         if self.verbose:
             print(f"Train set: {len(self.x_train)} samples")
