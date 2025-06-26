@@ -29,8 +29,8 @@ def extract_feature_vectors_from_zarr(zarr_path: str, output_json_path: str):
         metadata = metadata_list[0]  # TorchSig stores a list with one dict per index
 
         try:
-            original_center_freq = metadata["center_freq"]
-            original_bandwidth = metadata["bandwidth"]
+            original_flo = metadata["f_low"]
+            original_fhi = metadata["f_high"]
             duration_in_samples = metadata["duration_in_samples"]
             sample_rate = metadata["sample_rate"]
             class_index = metadata["class_index"]
@@ -39,17 +39,20 @@ def extract_feature_vectors_from_zarr(zarr_path: str, output_json_path: str):
             print(f"⚠️ Missing key {e} in metadata index {index_str}. Skipping.")
             continue
 
-        # ✅ Custom-normalize duration: 1 ms → 1.0
-        normalized_duration = (duration_in_samples / sample_rate) / 1e-3
+        # ✅ Compute original metadata
+        original_center_freq = (original_flo + original_fhi) / 2
+        original_bandwidth = abs(original_fhi - original_flo)
+        original_duration_sec = duration_in_samples / sample_rate
 
-        # ✅ Create normalized feature vector
+        # ✅ Apply latest normalization
         feature_vectors.append({
-            "center_freq": original_center_freq / 2.5e9,
-            "bandwidth": original_bandwidth / 10e6,
-            "duration": normalized_duration / 100,
+            "center_freq": original_center_freq / 1e9,  # Convert to GHz
+            "bandwidth": np.log10(original_bandwidth + 1),  # Log scale with +1 Hz shift
+            "duration": np.log10(original_duration_sec + 1e-6),  # Log scale with +1e-6 sec shift
             "class_index": class_index,
             "class_name": class_name
         })
+
 
     # ✅ Save feature vectors
     with open(output_json_path, "w") as f:
