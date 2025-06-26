@@ -4,7 +4,7 @@ import torch.nn as nn
 class FusionModel(nn.Module):
     def __init__(
         self,
-        iq_backbone: nn.Module,           # Pretrained and frozen
+        iq_backbone: nn.Module,           # Pretrained and not frozen
         metadata_tower: nn.Module,        # Trained or trainable
         fusion_head: nn.Module,           # The actual head we’ll train
     ):
