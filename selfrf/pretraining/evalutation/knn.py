@@ -25,7 +25,7 @@ class EvaluateKNN():
             x: Feature vectors to evaluate
             y: Corresponding labels
             split: Train/test split ratio
-            shuffel: Whether to shuffle data before splitting
+            shuffle: Whether to shuffle data before splitting
             n_neighbors: Number of neighbors for KNN
             verbose: Whether to print detailed logs
         """
