@@ -1,9 +1,12 @@
 
-# 📁 Narrowband Data Preprocessing Scripts
+# 📁 Narrowband Data Preprocessing Scripts & IQ Dataset Loader
 
-This folder contains scripts for preprocessing **SigMF** recordings into **TorchSig-compatible Zarr datasets** and generating metadata feature vectors for downstream machine learning tasks.
+This folder contains:
 
-The focus is on **narrowband signal extraction**, isolation, and preparation. Some older versions and experimental scripts are also included for reference.
+✅ Scripts for preprocessing **SigMF** recordings into **TorchSig-compatible Zarr datasets**, ready for machine learning tasks.  
+✅ A custom **IQ dataset and PyTorch Lightning DataModule** for easily loading preprocessed `.zarr` narrowband data into training pipelines.
+
+The focus is on narrowband signal extraction, realistic signal isolation, and preparation, as well as providing dataset logic compatible with TorchSig and PyTorch Lightning. Older versions and experimental scripts are also included for reference.
 
 ---
 
