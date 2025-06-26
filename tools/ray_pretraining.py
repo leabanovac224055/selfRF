@@ -3,7 +3,7 @@ from ray.train.torch import TorchTrainer
 from ray.air import RunConfig, ScalingConfig
 
 from selfrf.pretraining.config import TrainingConfig, print_config, parse_training_config
-from pretraining import train
+from tools.iq_pretraining import train
 
 
 def train_on_ray(config: TrainingConfig):
